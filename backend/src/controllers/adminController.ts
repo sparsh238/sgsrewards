@@ -4,6 +4,7 @@ import User from '../models/userModel';
 import Order from '../models/orderModel';
 import Bill from '../models/billModel';
 import System from '../models/systemModel';
+import { fiscalQuarter } from '../lib/fiscalQuarter';
 
 const TIER_ORDER = ['NoTier', 'Basic', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 
@@ -14,17 +15,20 @@ const getOverview = async (req: Request, res: Response) => {
   try {
     const system = await System.findOne();
     const reqs = (system?.tierBillingRequirements ?? {}) as Record<string, number>;
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
-    const from = req.query.from ? new Date(req.query.from as string) : new Date(new Date(to).setMonth(to.getMonth() - 3));
+    // Current fiscal quarter only — matches the tier review, so billing is never
+    // double-counted across quarters or leaked from a prior window.
+    const fq = fiscalQuarter(new Date());
+    const from = fq.from, to = fq.to;
 
+    // Match on the TRUE billing month (period), not the entry date.
     const agg = await Bill.aggregate([
-      { $match: { billDate: { $gte: from, $lt: to } } },
+      { $match: { period: { $gte: fq.periodFrom, $lt: fq.periodTo } } },
       { $group: { _id: '$userId', billed: { $sum: '$billAmount' } } },
     ]);
     const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
     const dealers = await User.find({ userType: 'customer' });
 
-    let promoting = 0, atRisk = 0;
+    let promoting = 0, atRisk = 0, dormant = 0;
     const byRegion: Record<string, any> = {};
     for (const u of dealers) {
       const billed = billedByUser.get(String(u._id)) ?? 0;
@@ -32,11 +36,15 @@ const getOverview = async (req: Request, res: Response) => {
       const floor = reqs[u.tier] ?? 0;
       const nextTier = idx < TIER_ORDER.length - 1 ? TIER_ORDER[idx + 1] : null;
       const nextReq = nextTier ? reqs[nextTier] ?? null : null;
-      let status: 'promoting' | 'holds' | 'atRisk' = 'holds';
-      if (nextReq != null && billed >= nextReq) status = 'promoting';
+      // dormant = no billing at all this window (inactive — needs re-engagement,
+      // whatever the tier); atRisk = billing, but below the floor to hold the tier.
+      let status: 'promoting' | 'holds' | 'atRisk' | 'dormant' = 'holds';
+      if (billed <= 0) status = 'dormant';
+      else if (nextReq != null && billed >= nextReq) status = 'promoting';
       else if (u.tier !== 'NoTier' && billed < floor) status = 'atRisk';
       if (status === 'promoting') promoting++;
-      if (status === 'atRisk') atRisk++;
+      else if (status === 'atRisk') atRisk++;
+      else if (status === 'dormant') dormant++;
       const target = nextReq ?? floor ?? 1;
       const progress = Math.min(100, Math.round((billed / (target || 1)) * 100));
       const region = u.region || 'Unassigned';
@@ -46,11 +54,20 @@ const getOverview = async (req: Request, res: Response) => {
       });
       byRegion[region].billed += billed;
     }
+    // Sort dealers so the actionable ones surface first: promoting, at-risk,
+    // holds, then dormant last (and by billing within each).
+    const rank: Record<string, number> = { promoting: 0, atRisk: 1, holds: 2, dormant: 3 };
     const regions = Object.values(byRegion)
-      .map((r: any) => ({ ...r, count: r.dealers.length, dealers: r.dealers.sort((a: any, b: any) => b.billed - a.billed) }))
+      .map((r: any) => ({
+        ...r,
+        count: r.dealers.length,
+        activeCount: r.dealers.filter((d: any) => d.status !== 'dormant').length,
+        dormantCount: r.dealers.filter((d: any) => d.status === 'dormant').length,
+        dealers: r.dealers.sort((a: any, b: any) => (rank[a.status] - rank[b.status]) || (b.billed - a.billed)),
+      }))
       .sort((a: any, b: any) => b.count - a.count);
 
-    res.send({ from, to, totals: { dealers: dealers.length, promoting, atRisk }, regions });
+    res.send({ from, to, quarterLabel: fq.label, totals: { dealers: dealers.length, promoting, atRisk, dormant }, regions });
   } catch (error) {
     res.status(500).send({ error: 'Failed to build overview' });
   }

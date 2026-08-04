@@ -18,6 +18,10 @@ interface System extends Document {
     Gold: number;
     Platinum: number;
   };
+  // The fiscal-quarter key (e.g. "2026-Q2") the tier review was last applied for,
+  // so a quarter can only be run once unless explicitly forced.
+  lastTierReviewQuarter?: string;
+  lastTierReviewAt?: Date;
 }
 
 const systemSchema = new Schema<System>({
@@ -38,6 +42,8 @@ const systemSchema = new Schema<System>({
     Gold: { type: Number, required: true },
     Platinum: { type: Number, required: true },
   },
+  lastTierReviewQuarter: { type: String, default: '' },
+  lastTierReviewAt: { type: Date, default: null },
 });
 
 export default model<System>('System', systemSchema);

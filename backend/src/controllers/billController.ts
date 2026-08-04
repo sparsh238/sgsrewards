@@ -29,6 +29,13 @@ const adjustUserPoints = async (userId: unknown, availableDelta: number, totalDe
 const isValidAmount = (value: unknown): value is number =>
   typeof value === 'number' && isFinite(value) && value > 0;
 
+// The billing month "YYYY-MM" from a date. Tiers evaluate on this, so whoever
+// enters/imports the bill must set billDate to the actual invoice date.
+const toPeriod = (d: unknown): string => {
+  const dt = new Date(d as string);
+  return isNaN(dt.getTime()) ? '' : dt.toISOString().slice(0, 7);
+};
+
 export const addBill = async (req: Request, res: Response) => {
     const { userId, billNumber, billDate, billAmount } = req.body;
 
@@ -53,7 +60,7 @@ export const addBill = async (req: Request, res: Response) => {
 
       // Persist the exact points granted (so edit/delete can reverse them precisely)
       // and the tier at billing time (for the admin audit view).
-      const newBill = new Bill({ userId, billNumber, billDate, billAmount, pointsAwarded: pointsToAdd, tierAtBill: user.tier });
+      const newBill = new Bill({ userId, billNumber, billDate, billAmount, pointsAwarded: pointsToAdd, tierAtBill: user.tier, period: toPeriod(billDate) });
       await newBill.save();
 
       if (pointsToAdd > 0) {
@@ -161,6 +168,7 @@ export const editBill = async (req: Request, res: Response) => {
         bill.billDate = billDate;
         bill.billAmount = billAmount;
         bill.pointsAwarded = newPoints;
+        bill.period = toPeriod(billDate);
         await bill.save();
 
         res.status(200).json(bill);

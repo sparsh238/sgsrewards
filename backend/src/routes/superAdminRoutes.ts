@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
-import { addUser, deleteUser, blockUser, resetPassword, updatePointsConversion, refreshUserList, getAllUsers, getPointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, getTierReview, applyTierReview } from '../controllers/superAdminController';
+import { addUser, deleteUser, blockUser, resetPassword, updatePointsConversion, refreshUserList, getAllUsers, getPointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, getTierReview, applyTierReview, updateDealer } from '../controllers/superAdminController';
 
 const router = Router();
 
@@ -13,6 +13,7 @@ router.get('/system/points-conversion', authMiddleware('superadmin', 'admin', 'c
 router.put('/system/points-conversion', authMiddleware('superadmin'), updatePointsConversion);
 router.post('/users/refresh', authMiddleware('superadmin'), refreshUserList);
 router.post('/users/change-tier', authMiddleware('superadmin'), changeUserTier);
+router.patch('/users/:id/details', authMiddleware('superadmin'), updateDealer);
 router.get('/tier-review', authMiddleware('superadmin'), getTierReview);
 router.post('/tier-review/apply', authMiddleware('superadmin'), applyTierReview);
 router.get('/system/tier-billing-requirements', authMiddleware('superadmin', 'customer'), getTierBillingRequirements);

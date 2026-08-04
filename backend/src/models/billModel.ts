@@ -7,6 +7,7 @@ export interface Bill extends Document {
     billAmount: number;
     pointsAwarded: number;
     tierAtBill: string;
+    period: string;
 }
 
 const BillSchema: Schema = new Schema({
@@ -21,6 +22,10 @@ const BillSchema: Schema = new Schema({
     // The dealer's tier at the moment the bill was recorded — shown in the admin
     // audit so a +0 (NoTier-at-billing) bill is explainable.
     tierAtBill: { type: String, default: '' },
+    // The TRUE billing month, "YYYY-MM". Tier evaluation runs on this (not the
+    // entry date) so a back-dated bill lands in the month it belongs to. Derived
+    // from billDate on add/edit; the daily push must set billDate to the invoice date.
+    period: { type: String, default: '', index: true },
 });
 
 export default mongoose.model<Bill>('Bill', BillSchema);

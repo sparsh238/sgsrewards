@@ -15,9 +15,13 @@ interface Change {
 }
 interface Review {
   from: string; to: string;
+  quarterLabel: string; fyLabel: string;
+  alreadyApplied: boolean; appliedAt: string | null;
   counts: { changes: number; up: number; down: number; newEntrants: number };
   changes: Change[];
 }
+
+const fmtDate = (d: string) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 const TierChip = ({ t }: { t: Tier }) => (
   <span className="tier-chip" style={{ color: TIER_ACCENT[t] }}>{t === 'NoTier' ? 'NoTier' : `◆ ${t}`}</span>
@@ -41,13 +45,14 @@ export default function TierReview() {
   const selectedCount = useMemo(() => Object.values(checked).filter(Boolean).length, [checked]);
   const allOn = review ? selectedCount === review.changes.length && review.changes.length > 0 : false;
 
-  const apply = async () => {
+  const apply = async (force = false) => {
     if (!review) return;
+    if (force && !window.confirm(`Recompute and re-apply the tier review for ${review.quarterLabel}? It runs on the same quarter's billing, so the result won't change unless bills were edited.`)) return;
     const changes = review.changes.filter((c) => checked[c.userId]).map((c) => ({ userId: c.userId, proposedTier: c.proposedTier }));
     if (changes.length === 0) { toastError('Select at least one dealer.'); return; }
     setApplying(true);
     try {
-      const res = await apiJson<{ applied: number }>('/api/superadmin/tier-review/apply', { method: 'POST', json: { changes } });
+      const res = await apiJson<{ applied: number }>('/api/superadmin/tier-review/apply', { method: 'POST', json: { changes, force } });
       toast(`${res.applied} tier change${res.applied === 1 ? '' : 's'} applied`);
       load();
     } catch (err) { toastError((err as Error).message); }
@@ -60,8 +65,11 @@ export default function TierReview() {
     <>
       <div className="admin-head">
         <div>
-          <h1>Quarterly Tier Review</h1>
-          <p className="page-sub">Computed from billing this window. Nothing applies until you approve.</p>
+          <h1>Quarterly Tier Review{review ? ` — ${review.quarterLabel}` : ''}</h1>
+          <p className="page-sub">
+            {review ? `Computed from ${review.quarterLabel} billing (${fmtDate(review.from)}–${fmtDate(review.to)}). ` : ''}
+            Nothing applies until you approve.
+          </p>
         </div>
       </div>
 
@@ -70,11 +78,23 @@ export default function TierReview() {
 
       {review && (
         <>
+          {review.alreadyApplied && (
+            <div className="tr-applied">
+              ✓ <b>{review.quarterLabel}</b> tier review was already applied{review.appliedAt ? ` on ${fmtDate(review.appliedAt)}` : ''}.
+              Running once per quarter is the norm — recompute only if you edited this quarter's bills.
+            </div>
+          )}
           <div className="tr-summary">
             <span className="tr-counts">{review.counts.changes} changes · {review.counts.up} up · {review.counts.down} down · {review.counts.newEntrants} new</span>
-            <button className="btn btn-primary" style={{ width: 'auto', padding: '9px 16px' }} onClick={apply} disabled={applying || selectedCount === 0}>
-              {applying ? 'Applying…' : `✓ Approve ${selectedCount} & apply`}
-            </button>
+            {review.alreadyApplied ? (
+              <button className="btn btn-ghost" style={{ width: 'auto', padding: '9px 16px' }} onClick={() => apply(true)} disabled={applying || selectedCount === 0}>
+                {applying ? 'Applying…' : `↻ Recompute & re-apply ${selectedCount}`}
+              </button>
+            ) : (
+              <button className="btn btn-primary" style={{ width: 'auto', padding: '9px 16px' }} onClick={() => apply(false)} disabled={applying || selectedCount === 0}>
+                {applying ? 'Applying…' : `✓ Approve ${selectedCount} & apply`}
+              </button>
+            )}
           </div>
 
           {review.changes.length === 0 ? (

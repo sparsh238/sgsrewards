@@ -44,11 +44,17 @@ const completeProfile = async (req: Request, res: Response) => {
   }
 };
 
-// Later profile edits. Only DOB and anniversary are editable by the dealer;
-// name/phone/GST are SGS-controlled and ignored here.
+// Later profile edits. The dealer may change their display name, contact name,
+// DOB and anniversary. Phone and GSTIN are the unique keys and stay locked.
 const updateProfile = async (req: Request, res: Response) => {
-  const { dateOfBirth, anniversaryDate } = req.body;
+  const { partyName, firstName, lastName, dateOfBirth, anniversaryDate } = req.body;
   try {
+    if (partyName !== undefined) {
+      if (!String(partyName).trim()) return res.status(400).send({ error: 'Display name cannot be empty' });
+      req.user.partyName = String(partyName).trim();
+    }
+    if (firstName !== undefined) req.user.firstName = String(firstName).trim();
+    if (lastName !== undefined) req.user.lastName = String(lastName).trim();
     if (dateOfBirth !== undefined) {
       const dob = toDate(dateOfBirth);
       if (!dob) return res.status(400).send({ error: 'A valid date of birth is required' });

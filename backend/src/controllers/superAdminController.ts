@@ -4,6 +4,7 @@ import User from '../models/userModel';
 import System from '../models/systemModel';
 import  Bill  from '../models/billModel';
 import OrderModel from '../models/orderModel';
+import { fiscalQuarter } from '../lib/fiscalQuarter';
 
 const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -212,6 +213,46 @@ const refreshUserList = async (req: Request, res: Response) => {
   // Logic to refresh user list from Busy API
 };
 
+const toDateOrNull = (v: unknown): Date | null => {
+  if (!v) return null;
+  const d = new Date(v as string);
+  return isNaN(d.getTime()) ? null : d;
+};
+
+// Superadmin edit of a dealer's fields. GSTIN is the definitive key and is NOT
+// editable here; everything else (display name, contact name, DOB, anniversary,
+// phone) is. Phone changes are checked for uniqueness.
+const updateDealer = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { partyName, firstName, lastName, dateOfBirth, anniversaryDate, phoneNumber } = req.body;
+  try {
+    const user = await User.findById(id);
+    if (!user) return res.status(404).send({ error: 'Dealer not found' });
+
+    if (phoneNumber !== undefined && String(phoneNumber) !== user.phoneNumber) {
+      const phone = String(phoneNumber).trim();
+      if (!/^\d{10}$/.test(phone)) return res.status(400).send({ error: 'Phone must be 10 digits' });
+      const clash = await User.findOne({ phoneNumber: phone, _id: { $ne: user._id } });
+      if (clash) return res.status(400).send({ error: 'Another account already uses that phone number' });
+      // Dealers log in by phone; keep the auto-username in sync when it was the phone.
+      if (user.username === user.phoneNumber) user.username = phone;
+      user.phoneNumber = phone;
+    }
+    if (partyName !== undefined) {
+      if (!String(partyName).trim()) return res.status(400).send({ error: 'Display name cannot be empty' });
+      user.partyName = String(partyName).trim();
+    }
+    if (firstName !== undefined) user.firstName = String(firstName).trim();
+    if (lastName !== undefined) user.lastName = String(lastName).trim();
+    if (dateOfBirth !== undefined) user.dateOfBirth = toDateOrNull(dateOfBirth);
+    if (anniversaryDate !== undefined) user.anniversaryDate = toDateOrNull(anniversaryDate);
+    await user.save();
+    res.send(user);
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to update dealer' });
+  }
+};
+
 const TIER_ORDER = ['NoTier', 'Basic', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 
 // Highest tier whose quarterly billing requirement the dealer met in the window.
@@ -225,19 +266,17 @@ const tierForBilling = (billed: number, reqs: Record<string, number>): string =>
 };
 
 // Quarterly tier review: proposals only, never applied here. Sums each dealer's
-// billing in [from, to) and proposes the tier it earns, vs their current tier.
+// billing in the CURRENT fiscal quarter and proposes the tier it earns.
 const getTierReview = async (req: Request, res: Response) => {
   try {
     const system = await System.findOne();
     const reqs = (system?.tierBillingRequirements ?? {}) as Record<string, number>;
+    const fq = fiscalQuarter(new Date());
 
-    const to = req.query.to ? new Date(req.query.to as string) : new Date();
-    const from = req.query.from
-      ? new Date(req.query.from as string)
-      : new Date(new Date(to).setMonth(to.getMonth() - 3));
-
+    // Match on the TRUE billing month (period), not the entry date, so back-dated
+    // bills land in the quarter they belong to.
     const agg = await Bill.aggregate([
-      { $match: { billDate: { $gte: from, $lt: to } } },
+      { $match: { period: { $gte: fq.periodFrom, $lt: fq.periodTo } } },
       { $group: { _id: '$userId', billed: { $sum: '$billAmount' } } },
     ]);
     const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
@@ -256,7 +295,9 @@ const getTierReview = async (req: Request, res: Response) => {
     });
     const changes = rows.filter((r) => r.direction !== 'hold');
     res.send({
-      from, to,
+      quarter: fq.key, quarterLabel: fq.label, fyLabel: fq.fyLabel, from: fq.from, to: fq.to,
+      alreadyApplied: system?.lastTierReviewQuarter === fq.key,
+      appliedAt: system?.lastTierReviewQuarter === fq.key ? system?.lastTierReviewAt : null,
       counts: {
         changes: changes.length,
         up: changes.filter((r) => r.direction === 'up').length,
@@ -270,12 +311,21 @@ const getTierReview = async (req: Request, res: Response) => {
   }
 };
 
-// Apply approved rows. Reuses the change-tier semantics: records previousTier and
-// flags the welcome so each promoted/dropped dealer sees it once.
+// Apply approved rows. Once per quarter unless `force` is passed. Reuses the
+// change-tier semantics: records previousTier and flags the welcome once.
 const applyTierReview = async (req: Request, res: Response) => {
-  const { changes } = req.body as { changes?: Array<{ userId: string; proposedTier: string }> };
+  const { changes, force } = req.body as { changes?: Array<{ userId: string; proposedTier: string }>; force?: boolean };
   if (!Array.isArray(changes)) return res.status(400).send({ error: 'changes[] required' });
   try {
+    const system = await System.findOne();
+    const fq = fiscalQuarter(new Date());
+    if (system?.lastTierReviewQuarter === fq.key && !force) {
+      return res.status(409).send({
+        error: 'ALREADY_APPLIED',
+        message: `Tier review for ${fq.label} was already applied on ${system?.lastTierReviewAt}. Recompute to run it again.`,
+        quarter: fq.key, appliedAt: system?.lastTierReviewAt,
+      });
+    }
     let applied = 0;
     for (const c of changes) {
       if (!TIER_ORDER.includes(c.proposedTier)) continue;
@@ -287,10 +337,15 @@ const applyTierReview = async (req: Request, res: Response) => {
       await user.save();
       applied++;
     }
-    res.send({ applied });
+    if (system) {
+      system.lastTierReviewQuarter = fq.key;
+      system.lastTierReviewAt = new Date();
+      await system.save();
+    }
+    res.send({ applied, quarter: fq.key });
   } catch (error) {
     res.status(500).send({ error: 'Failed to apply tier review' });
   }
 };
 
-export { getAllUsers, addUser, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview };
+export { getAllUsers, addUser, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer };

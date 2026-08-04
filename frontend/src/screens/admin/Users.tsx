@@ -33,6 +33,7 @@ export default function Users() {
   const [error, setError] = useState('');
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState<UserRow | null>(null);
+  const [editFor, setEditFor] = useState<UserRow | null>(null);
   const [tab, setTab] = useState<'dealers' | 'team'>('dealers');
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const { toast, toastError } = useToast();
@@ -153,7 +154,10 @@ export default function Users() {
                     <td><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
                   )}
                   {isSuper && (
-                    <td><div className="t-actions"><button className="mini-btn" onClick={() => setResetFor(u)}>{u.userType === 'customer' ? 'Reset PIN' : 'Reset password'}</button></div></td>
+                    <td><div className="t-actions">
+                      {u.userType === 'customer' && <button className="mini-btn" onClick={() => setEditFor(u)}>Edit</button>}
+                      <button className="mini-btn" onClick={() => setResetFor(u)}>{u.userType === 'customer' ? 'Reset PIN' : 'Reset password'}</button>
+                    </div></td>
                   )}
                 </tr>
               ))}
@@ -165,7 +169,58 @@ export default function Users() {
 
       {addOpen && <AddUserModal isSuper={isSuper} defaultStaff={tab === 'team'} onClose={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); load(); }} />}
       {resetFor && <ResetModal user={resetFor} onClose={() => setResetFor(null)} />}
+      {editFor && <EditDealerModal user={editFor} onClose={() => setEditFor(null)} onSaved={() => { setEditFor(null); load(); }} />}
     </>
+  );
+}
+
+const toInput = (d?: string | null) => (d ? new Date(d).toISOString().slice(0, 10) : '');
+
+// Superadmin edit of every dealer field except GSTIN (the definitive key).
+function EditDealerModal({ user, onClose, onSaved }: { user: UserRow; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({
+    partyName: user.partyName ?? '', firstName: user.firstName ?? '', lastName: user.lastName ?? '',
+    phoneNumber: user.phoneNumber ?? '', dateOfBirth: toInput(user.dateOfBirth), anniversaryDate: toInput(user.anniversaryDate),
+  });
+  const [busy, setBusy] = useState(false);
+  const { toast, toastError } = useToast();
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const save = async () => {
+    if (!form.partyName.trim()) { toastError('Display name cannot be empty.'); return; }
+    if (!/^\d{10}$/.test(form.phoneNumber)) { toastError('Phone must be 10 digits.'); return; }
+    setBusy(true);
+    try {
+      await apiJson(`/api/superadmin/users/${user._id}/details`, {
+        method: 'PATCH',
+        json: {
+          partyName: form.partyName.trim(), firstName: form.firstName.trim(), lastName: form.lastName.trim(),
+          phoneNumber: form.phoneNumber.trim(), dateOfBirth: form.dateOfBirth || null, anniversaryDate: form.anniversaryDate || null,
+        },
+      });
+      toast('Dealer updated');
+      onSaved();
+    } catch (err) { toastError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title={`Edit · ${user.partyName}`} onClose={onClose}>
+      <div className="form-grid">
+        <div className="field full"><label htmlFor="dn">Display name</label><input id="dn" className="input" value={form.partyName} onChange={set('partyName')} /></div>
+        <div className="field"><label htmlFor="fn">First name</label><input id="fn" className="input" value={form.firstName} onChange={set('firstName')} /></div>
+        <div className="field"><label htmlFor="ln">Last name</label><input id="ln" className="input" value={form.lastName} onChange={set('lastName')} /></div>
+        <div className="field"><label htmlFor="ph">Phone</label><input id="ph" className="input" inputMode="numeric" value={form.phoneNumber} onChange={(e) => setForm((f) => ({ ...f, phoneNumber: e.target.value.replace(/\D/g, '').slice(0, 10) }))} /></div>
+        <div className="field"><label htmlFor="gs">GSTIN <span className="hint">· locked key</span></label><input id="gs" className="input" value={user.gstin || '—'} readOnly disabled /></div>
+        <div className="field"><label htmlFor="db">Date of birth</label><input id="db" className="input" type="date" value={form.dateOfBirth} onChange={set('dateOfBirth')} /></div>
+        <div className="field"><label htmlFor="an">Anniversary</label><input id="an" className="input" type="date" value={form.anniversaryDate} onChange={set('anniversaryDate')} /></div>
+      </div>
+      <p className="hint">GSTIN is the definitive dealer key and can’t be changed here. Phone must stay unique.</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
+      </div>
+    </Modal>
   );
 }
 

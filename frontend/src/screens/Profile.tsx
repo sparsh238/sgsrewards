@@ -27,6 +27,23 @@ type OrderStatus = 'All' | 'Pending' | 'Completed' | 'Cancelled';
 // ISO date -> yyyy-mm-dd for <input type=date>; '' if empty.
 const toInput = (d?: string | null) => (d ? new Date(d).toISOString().slice(0, 10) : '');
 
+// "YYYY-MM" -> "Jul 2026". Bills group by their true billing month (period).
+const monthLabel = (period?: string) => {
+  if (!period || !/^\d{4}-\d{2}$/.test(period)) return 'Undated';
+  const [y, m] = period.split('-');
+  return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
+};
+function groupByMonth(bills: Bill[]) {
+  const map = new Map<string, { period: string; billed: number; pts: number; items: Bill[] }>();
+  for (const b of bills) {
+    const key = b.period || b.billDate?.slice(0, 7) || 'undated';
+    const g = map.get(key) ?? { period: key, billed: 0, pts: 0, items: [] };
+    g.billed += b.billAmount; g.pts += b.pointsAwarded ?? 0; g.items.push(b);
+    map.set(key, g);
+  }
+  return [...map.values()].sort((a, b) => b.period.localeCompare(a.period));
+}
+
 export default function ProfilePage() {
   const { logout } = useAuth();
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -39,17 +56,26 @@ export default function ProfilePage() {
   const [oPage, setOPage] = useState(1);
   const [bills, setBills] = useState<Page<Bill> | null>(null);
   const [bPage, setBPage] = useState(1);
+  const [openMonths, setOpenMonths] = useState<Record<string, boolean>>({});
 
-  // Profile edit
+  // Profile edit — display name, contact name, DOB, anniversary (phone/GST locked)
   const [editing, setEditing] = useState(false);
+  const [dispName, setDispName] = useState('');
+  const [first, setFirst] = useState('');
+  const [last, setLast] = useState('');
   const [dob, setDob] = useState('');
   const [anniv, setAnniv] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const seedForm = (p: Profile) => {
+    setDispName(p.partyName ?? ''); setFirst(p.firstName ?? ''); setLast(p.lastName ?? '');
+    setDob(toInput(p.dateOfBirth)); setAnniv(toInput(p.anniversaryDate));
+  };
+
   useEffect(() => {
     let alive = true;
     apiJson<Profile>('/api/user/profile')
-      .then((p) => { if (alive) { setProfile(p); setDob(toInput(p.dateOfBirth)); setAnniv(toInput(p.anniversaryDate)); } })
+      .then((p) => { if (alive) { setProfile(p); seedForm(p); } })
       .catch((e) => { if (alive) setError((e as Error).message); });
     return () => { alive = false; };
   }, []);
@@ -63,19 +89,20 @@ export default function ProfilePage() {
 
   useEffect(() => {
     let alive = true;
-    const q = new URLSearchParams({ page: String(bPage), pageSize: '8' });
+    const q = new URLSearchParams({ page: String(bPage), pageSize: '60' });
     apiJson<Page<Bill>>(`/api/bill/user?${q}`).then((r) => { if (alive) setBills(r); }).catch(() => {});
     return () => { alive = false; };
   }, [bPage]);
 
-  const saveDates = async () => {
-    setSaving(true);
+  const saveProfile = async () => {
+    if (!dispName.trim()) { setError('Display name cannot be empty'); return; }
+    setSaving(true); setError('');
     try {
       const updated = await apiJson<Profile>('/api/user/profile', {
         method: 'PUT',
-        json: { dateOfBirth: dob || null, anniversaryDate: anniv || null },
+        json: { partyName: dispName.trim(), firstName: first.trim(), lastName: last.trim(), dateOfBirth: dob || null, anniversaryDate: anniv || null },
       });
-      setProfile(updated);
+      setProfile(updated); seedForm(updated);
       setEditing(false);
     } catch (e) { setError((e as Error).message); }
     finally { setSaving(false); }
@@ -118,7 +145,8 @@ export default function ProfilePage() {
           </div>
           <div style={{ minWidth: 0 }}>
             <div className="party">{profile.partyName}</div>
-            <div className="page-sub">{profile.phoneNumber}{profile.gstin ? ` · ${profile.gstin}` : ''}</div>
+            <div className="page-sub">{profile.phoneNumber}</div>
+            <div className="prof-gst">{profile.gstin || 'GST not on file'}</div>
             <span className="prof-tier" style={{ color: accent, borderColor: accent }}>
               {profile.tier === 'NoTier' ? 'No tier yet' : `◆ ${profile.tier}`}
             </span>
@@ -142,28 +170,37 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* My details — DOB & anniversary editable; name/phone/GST locked */}
-      {profile && (
+      {/* My details. View is read-only — editing is via the ⋮ menu → Edit profile. */}
+      {profile && !editing && (
         <div className="card prof-details">
           <div className="prof-drow"><span className="pd-l">Name</span><span className="pd-v">{[profile.firstName, profile.lastName].filter(Boolean).join(' ') || '—'}</span></div>
-          {editing ? (
-            <>
-              <div className="prof-drow"><span className="pd-l">Date of birth</span>
-                <input className="input pd-input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} /></div>
-              <div className="prof-drow"><span className="pd-l">Anniversary</span>
-                <input className="input pd-input" type="date" value={anniv} onChange={(e) => setAnniv(e.target.value)} /></div>
-              <div className="prof-dedit">
-                <button className="btn btn-ghost" onClick={() => { setEditing(false); setDob(toInput(profile.dateOfBirth)); setAnniv(toInput(profile.anniversaryDate)); }}>Cancel</button>
-                <button className="btn btn-primary" onClick={saveDates} disabled={saving}>{saving ? 'Saving…' : 'Save'}</button>
-              </div>
-            </>
-          ) : (
-            <>
-              <div className="prof-drow"><span className="pd-l">Date of birth</span><span className="pd-v">{profile.dateOfBirth ? formatDate(profile.dateOfBirth) : '—'}</span></div>
-              <div className="prof-drow"><span className="pd-l">Anniversary</span><span className="pd-v">{profile.anniversaryDate ? formatDate(profile.anniversaryDate) : <span className="pd-add" onClick={() => setEditing(true)}>Add</span>}</span></div>
-              <button className="prof-editlink" onClick={() => setEditing(true)}>✎ Edit dates</button>
-            </>
-          )}
+          <div className="prof-drow"><span className="pd-l">Date of birth</span><span className="pd-v">{profile.dateOfBirth ? formatDate(profile.dateOfBirth) : '—'}</span></div>
+          <div className="prof-drow"><span className="pd-l">Anniversary</span><span className="pd-v">{profile.anniversaryDate ? formatDate(profile.anniversaryDate) : '—'}</span></div>
+        </div>
+      )}
+
+      {/* Edit profile — display name, contact name, DOB, anniversary. Phone & GST locked. */}
+      {profile && editing && (
+        <div className="card prof-details prof-editcard">
+          <div className="prof-edith">Edit profile</div>
+          <label className="pd-flabel">Display name</label>
+          <input className="input" value={dispName} onChange={(e) => setDispName(e.target.value)} placeholder="Shown on your profile" />
+          <div className="pd-two">
+            <div><label className="pd-flabel">First name</label><input className="input" value={first} onChange={(e) => setFirst(e.target.value)} /></div>
+            <div><label className="pd-flabel">Last name</label><input className="input" value={last} onChange={(e) => setLast(e.target.value)} /></div>
+          </div>
+          <label className="pd-flabel">Date of birth</label>
+          <input className="input" type="date" value={dob} onChange={(e) => setDob(e.target.value)} />
+          <label className="pd-flabel">Anniversary <span className="pd-opt">· optional</span></label>
+          <input className="input" type="date" value={anniv} onChange={(e) => setAnniv(e.target.value)} />
+          <label className="pd-flabel">Phone <span className="pd-lock">🔒 locked</span></label>
+          <div className="input pd-locked">{profile.phoneNumber}</div>
+          <label className="pd-flabel">GSTIN <span className="pd-lock">🔒 locked</span></label>
+          <div className="input pd-locked">{profile.gstin || '—'}</div>
+          <div className="prof-dedit">
+            <button className="btn btn-ghost" onClick={() => { setEditing(false); seedForm(profile); setError(''); }}>Cancel</button>
+            <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>{saving ? 'Saving…' : 'Save changes'}</button>
+          </div>
         </div>
       )}
 
@@ -200,12 +237,24 @@ export default function ProfilePage() {
           {bills && bills.items.length === 0 ? (
             <div className="empty"><b>No bills yet</b><span>Bills added by SGS will appear here.</span></div>
           ) : (
-            (bills?.items ?? []).map((b) => (
-              <div key={b._id} className="act-row">
-                <span><b className="num">{b.billNumber}</b><span className="sub">{formatDate(b.billDate)} · ₹{formatNumber(b.billAmount)}</span></span>
-                <span className="amt-plus num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : '—'}</span>
-              </div>
-            ))
+            groupByMonth(bills?.items ?? []).map((g, i) => {
+              const open = g.period in openMonths ? openMonths[g.period] : i === 0;
+              return (
+                <div className="bmonth" key={g.period}>
+                  <button className={`bmonth-h${open ? ' open' : ''}`} onClick={() => setOpenMonths((s) => ({ ...s, [g.period]: !(g.period in s ? s[g.period] : i === 0) }))}>
+                    <span className="bm-chev">{open ? '▾' : '▸'}</span>
+                    <span className="bm-name">{monthLabel(g.period)}</span>
+                    <span className="bm-meta"><span className="bm-amt num">₹{formatNumber(g.billed)}</span><span className="bm-pts num">+{formatNumber(g.pts)}</span></span>
+                  </button>
+                  {open && g.items.map((b) => (
+                    <div key={b._id} className="brow">
+                      <span><b className="bn num">{b.billNumber}</b><span className="sub">{formatDate(b.billDate)}</span></span>
+                      <span className="bramt"><span className="ba num">₹{formatNumber(b.billAmount)}</span><span className="bp num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : '—'}</span></span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })
           )}
           <Pager page={bPage} pages={totalPages(bills)} onGo={setBPage} />
         </>

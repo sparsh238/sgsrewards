@@ -82,6 +82,7 @@ export interface Bill {
   billDate: string;
   billAmount: number;
   pointsAwarded?: number;
+  period?: string;
 }
 
 function sumBills(bills: Bill[], startMs: number, endMs: number): { billed: number; earned: number } {
@@ -124,15 +125,26 @@ export function quarterEnd(now = new Date()): Date {
   return new Date(now.getFullYear(), q * 3 + 3, 0, 23, 59, 59);
 }
 
-export function quarterLabel(now = new Date()): string {
-  const names = ['Jan–Mar', 'Apr–Jun', 'Jul–Sep', 'Oct–Dec'];
-  return `Q${Math.floor(now.getMonth() / 3) + 1} · ${names[Math.floor(now.getMonth() / 3)]}`;
+// Indian fiscal quarter (Apr–Mar): Q1 Apr–Jun, Q2 Jul–Sep, Q3 Oct–Dec, Q4 Jan–Mar.
+// The date window matches the calendar quarter above; only the label differs.
+function fyQuarter(now: Date): { q: number; fyStart: number } {
+  const y = now.getFullYear(), m = now.getMonth();
+  if (m >= 3 && m <= 5) return { q: 1, fyStart: y };
+  if (m >= 6 && m <= 8) return { q: 2, fyStart: y };
+  if (m >= 9 && m <= 11) return { q: 3, fyStart: y };
+  return { q: 4, fyStart: y - 1 };
 }
 
-/** Stable identifier for the current quarter, e.g. "2026-Q3" — used to fire the
- *  quarterly tier-welcome exactly once per quarter. */
+export function quarterLabel(now = new Date()): string {
+  const { q, fyStart } = fyQuarter(now);
+  return `Q${q} · FY${fyStart}-${String((fyStart + 1) % 100).padStart(2, '0')}`;
+}
+
+/** Stable identifier for the current fiscal quarter, e.g. "2026-Q2" — matches the
+ *  backend's fiscalQuarter key; fires the quarterly tier-welcome once per quarter. */
 export function quarterKey(now = new Date()): string {
-  return `${now.getFullYear()}-Q${Math.floor(now.getMonth() / 3) + 1}`;
+  const { q, fyStart } = fyQuarter(now);
+  return `${fyStart}-Q${q}`;
 }
 
 /** Sum of bills dated inside the current quarter. */
