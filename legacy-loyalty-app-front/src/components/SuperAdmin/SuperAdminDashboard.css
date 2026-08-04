@@ -1,0 +1,116 @@
+.superadmin-dashboard {
+    padding: 20px;
+}
+
+.superadmin-dashboard h1 {
+    margin-bottom: 20px;
+}
+
+.search-container {
+    margin-bottom: 20px;
+    text-align: right;
+}
+
+.search-container input {
+    padding: 5px 10px;
+    font-size: 16px;
+}
+
+.search-container button {
+    padding: 5px 10px;
+    font-size: 16px;
+    margin-left: 10px;
+}
+
+.user-lists {
+    display: flex;
+    flex-direction: column;
+}
+
+.user-list {
+    margin-bottom: 30px;
+}
+
+.user-list h2 {
+    margin-bottom: 10px;
+}
+
+.user-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.user-table th,
+.user-table td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+    width: 20%; /* Set a base width for each column */
+}
+
+.sa-user-action-button:last-child{
+    background-color: red;
+}
+
+.user-table th:nth-child(1),
+.user-table td:nth-child(1) {
+    width: 0%; /* Increase width for username column */
+}
+
+.user-table th:nth-child(2),
+.user-table td:nth-child(2) {
+    width: 15%; /* Adjust phonenumber column width */
+}
+
+.user-table th:nth-child(3),
+.user-table td:nth-child(3) {
+    width: 5%; /* Adjust email column width */
+}
+
+.user-table th:nth-child(4),
+.user-table td:nth-child(4) {
+    width: 5%; /* Adjust blocked columns width */
+}
+
+.user-table th:nth-child(5),
+.user-table td:nth-child(5) {
+    width: 40%;
+}
+
+.user-table th {
+    background-color: #f9f9f9;
+}
+
+.user-table td input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.user-table td button {
+    margin-right: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.user-table td button:last-child {
+    margin-right: 0;
+}
+
+@media (max-width: 768px) {
+    .superadmin-dashboard{
+        margin-top: 150px;
+        margin-left: 70px;
+    }
+    .user-table th,
+    .user-table td {
+        padding: 8px;
+        font-size: 14px;
+    }
+
+    .search-container input {
+        font-size: 14px;
+    }
+
+    .search-container button {
+        font-size: 14px;
+    }
+}

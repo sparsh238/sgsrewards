@@ -1,0 +1,171 @@
+.tier-page {
+    padding: 20px 15px;
+    font-family: Arial, sans-serif;
+}
+
+.highlight {
+    font-weight: bold;
+    text-decoration: underline;
+}
+
+.tiers-info-holder {
+    display: flex;
+}
+
+.tier-section {
+    margin-bottom: 20px;
+    padding: 0px 0px;
+    padding-top: 10px;
+}
+
+.tier-section p{
+    padding-top: 15px;
+}
+
+.current-tier {
+    margin-left: -20px;
+}
+
+.next-quarter-tier{
+    margin-top: 0px;
+    margin-left: 0px;
+    padding-left: -30px;
+    width: 250px;
+}
+
+.next-quarter-tier svg {
+    margin-left: 5px;
+}
+
+.message-text{
+    margin-top: -140px;
+}
+
+.quarter-billling{
+    font-size: 1.7em;
+    color: #145c49;
+    font-weight: bolder;
+}
+
+.tier-box {
+    text-align: center;
+    margin-top: -120px;
+    font-size: 20px;
+    font-weight: bold;
+    display: inline-block;
+    min-width: 150px;
+
+}
+
+.shield {
+    fill: currentColor
+}
+
+.shieldText{
+    position: relative;
+    top:-190px;
+    left: 0px;
+    color:black;
+}
+
+.tier-box.notier {
+    border-radius: 0;
+    height: auto;
+    color: lightcoral;
+}
+
+.star-Img{
+    position: relative;
+    padding: 5px;
+    top: 150px;
+    left: -2px;
+}
+
+.tier-box.basic {
+    /*  background-color: #ffdd8f; */
+    color: #ffdd8f;
+}
+
+.tier-box.bronze {
+    /* background-color: #F59F4A; */
+    color: #F59F4A;
+}
+
+.tier-box.silver {
+    /* background-color: #BCC6CC; */
+    color: #BCC6CC;
+}
+
+.tier-box.gold {
+    /* background-color: #EFBF04; */
+    color: #EFBF04;
+}
+
+.tier-box.platinum {
+    /* background-color: #D3D6D8; */
+    color: #D3D6D8;
+}
+
+.arrow-down-img {
+    position: relative;
+    top: 50px;
+    rotate: -90deg;
+}
+
+.tier-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    font-size: .8em;
+}
+
+.tier-table th, .tier-table td {
+    padding: 10px;
+    text-align: center;
+    border: 1px solid #ccc;
+}
+
+.tier-table th {
+    background-color: #f5f5f5;
+    font-weight: bold;
+}
+
+.tier-table .tick {
+    color: #145c49;
+    font-size: 1.2rem;
+    font-weight: bold;
+}
+
+.tier-terms {
+    margin-top: 20px;
+    padding: 0 10px;
+}
+
+.tier-terms h3 {
+    margin-bottom: 10px;
+}
+
+.tier-terms p {
+    margin: 5px 0;
+    color: #555;
+    text-align: justify;
+}
+
+.loading {
+    margin: 180px 130px;
+}
+
+.loader {
+    
+    border: 16px solid #f3f3f3; /* Light grey */
+    border-top: 16px solid #3498db; /* Blue */
+    border-radius: 50%;
+    width: 120px;
+    height: 120px;
+    animation: spin 2s linear infinite;
+  }
+  
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }

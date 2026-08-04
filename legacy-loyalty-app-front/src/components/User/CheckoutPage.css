@@ -1,0 +1,31 @@
+.checkout-page {
+    display: flex;
+    justify-content: space-between;
+    margin: 0px;
+    gap: 20px;
+}
+
+.address-section {
+    flex: 1;
+    min-width: 700px;
+    background: #f9f9f9;
+    border-radius: 8px;
+}
+
+.item-details-section {
+    flex: 2;
+    min-width: 400px;
+    background: #f1f1f1;
+    border-radius: 8px;
+}
+
+@media (max-width: 768px) {
+    .checkout-page {
+        flex-direction: column;
+    }
+    .address-section,
+    .item-details-section {
+        flex-basis: 100%; /* Take full width on smaller screens */
+        min-width: auto;
+    }
+}

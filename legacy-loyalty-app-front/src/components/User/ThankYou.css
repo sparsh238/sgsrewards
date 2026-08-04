@@ -1,0 +1,60 @@
+.thank-you-page {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 80vh;
+    text-align: center;
+    background: #ffffff; /* Light blue background for a soothing effect */
+    padding: 20px;
+    box-sizing: border-box;
+}
+
+.thank-you-header {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+}
+
+.close-button {
+    font-size: 24px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.thank-you-content h1 {
+    font-size: 2.5em;
+    color: #333;
+    margin-bottom: 20px;
+}
+
+.thank-you-content p {
+    font-size: 1.2em;
+    color: #555;
+    margin-bottom: 10px;
+}
+
+.remaining-points {
+    font-size: 1.5em;
+    color: #4caf50; /* Green color for remaining points to signify positivity */
+    margin-bottom: 20px;
+}
+
+.keep-shopping-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 16px;
+    background-color: #145c49;
+    color: #ffdd8f;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.keep-shopping-button:hover {
+    background-color: #0056b3;
+}

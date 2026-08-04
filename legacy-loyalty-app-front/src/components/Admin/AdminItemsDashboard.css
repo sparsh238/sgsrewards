@@ -1,0 +1,91 @@
+.admin-items-dashboard {
+    padding: 20px;
+}
+
+.admin-items-dashboard h1 {
+    margin-bottom: 20px;
+}
+
+.add-item-button {
+    padding: 10px 20px;
+    background-color: blue;
+    color: white;
+    margin-left: 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    float: right;
+    margin-bottom: 20px;
+}
+
+.item-action-button{
+    padding: 20px 20px;
+    background-color: blue;
+    color: white;
+    margin-left: 10px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    float: right;
+    margin-bottom: 20px;
+}
+.item-action-button:first-child{
+    background-color: red;
+}
+
+.add-item-button:hover {
+    background-color: darkblue;
+}
+
+.search-container {
+    margin-bottom: 20px;
+    text-align: right;
+}
+
+.search-container input {
+    padding: 5px 10px;
+    font-size: 16px;
+    width: 100%;
+    max-width: 300px;
+}
+
+.items-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.items-table th, .items-table td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+}
+
+.items-table th {
+    background-color: #f9f9f9;
+}
+
+.items-table td button {
+    margin-right: 5px;
+    padding: 5px 10px;
+    cursor: pointer;
+}
+
+.items-table td button:last-child {
+    margin-right: 0;
+}
+
+@media (max-width: 768px) {
+    .items-table th,
+    .items-table td {
+        padding: 8px;
+        font-size: 14px;
+    }
+
+    .search-container input {
+        font-size: 14px;
+    }
+
+    .search-container button {
+        font-size: 14px;
+    }
+}

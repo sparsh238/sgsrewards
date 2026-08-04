@@ -1,0 +1,115 @@
+import { useEffect, useMemo, useState } from 'react';
+import { apiJson } from '../../lib/api';
+import { useToast } from '../../lib/toast';
+import { formatDate, formatNumber } from '../../lib/format';
+
+interface AdminOrder {
+  _id: string;
+  orderIdAlias: string;
+  userId: { partyName?: string; phoneNumber?: string } | null;
+  totalValue: number;
+  orderDate: string;
+  status: 'Pending' | 'Completed' | 'Cancelled';
+  items: { itemId: { name?: string } | null; quantity: number }[];
+  address?: { addressLine1?: string; city?: string; pinCode?: string } | null;
+}
+
+const STATUSES: AdminOrder['status'][] = ['Pending', 'Completed', 'Cancelled'];
+
+export default function Orders() {
+  const [orders, setOrders] = useState<AdminOrder[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [filter, setFilter] = useState<'All' | AdminOrder['status']>('All');
+  const [error, setError] = useState('');
+  const { toast, toastError } = useToast();
+
+  useEffect(() => {
+    apiJson<AdminOrder[]>('/api/admin/orders')
+      .then((d) => setOrders([...d].reverse()))
+      .catch((e) => setError((e as Error).message));
+  }, []);
+
+  const changeStatus = async (order: AdminOrder, status: AdminOrder['status']) => {
+    const prev = order.status;
+    setOrders((os) => os?.map((o) => (o._id === order._id ? { ...o, status } : o)) ?? null);
+    try {
+      await apiJson(`/api/admin/${order._id}/status`, { method: 'PATCH', json: { status } });
+      toast(`Order ${order.orderIdAlias} → ${status}${status === 'Cancelled' ? ' (points refunded)' : ''}`);
+    } catch (err) {
+      setOrders((os) => os?.map((o) => (o._id === order._id ? { ...o, status: prev } : o)) ?? null);
+      toastError((err as Error).message);
+    }
+  };
+
+  const visible = useMemo(() => {
+    if (!orders) return [];
+    const q = query.trim().toLowerCase();
+    return orders.filter((o) => {
+      if (filter !== 'All' && o.status !== filter) return false;
+      if (!q) return true;
+      return o.orderIdAlias.toLowerCase().includes(q)
+        || (o.userId?.partyName ?? '').toLowerCase().includes(q)
+        || (o.userId?.phoneNumber ?? '').includes(q);
+    });
+  }, [orders, query, filter]);
+
+  return (
+    <>
+      <div className="admin-head">
+        <div><h1>Orders</h1><p className="page-sub">Update fulfilment status. Cancelling refunds the dealer's points.</p></div>
+        <div className="admin-toolbar">
+          <input className="input" placeholder="Search order / dealer / phone…" value={query} onChange={(e) => setQuery(e.target.value)} />
+        </div>
+      </div>
+
+      <div className="chip-row">
+        {(['All', ...STATUSES] as const).map((s) => {
+          const n = s === 'All' ? (orders?.length ?? 0) : (orders?.filter((o) => o.status === s).length ?? 0);
+          return <button key={s} className={`fchip${filter === s ? ' on' : ''} st-${s.toLowerCase()}`} onClick={() => setFilter(s)}>{s} <b className="fc-n">{n}</b></button>;
+        })}
+      </div>
+
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {orders === null && !error && <div className="skeleton" style={{ height: 200 }} />}
+
+      {orders !== null && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Order</th><th>Dealer</th><th>Items</th><th>Points</th><th>Date</th><th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((o) => (
+                <tr key={o._id}>
+                  <td className="t-strong t-num">{o.orderIdAlias}</td>
+                  <td><div className="t-strong">{o.userId?.partyName ?? '—'}</div><div className="hint">{o.userId?.phoneNumber ?? ''}</div></td>
+                  <td>
+                    {o.items[0]?.itemId?.name ?? 'items'}
+                    {o.items.length > 1 && <span className="hint"> +{o.items.length - 1}</span>}
+                  </td>
+                  <td className="t-num">{formatNumber(o.totalValue)}</td>
+                  <td className="hint">{formatDate(o.orderDate)}</td>
+                  <td>
+                    <select
+                      className={`pill ${o.status.toLowerCase()}`}
+                      style={{ border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+                      value={o.status}
+                      onChange={(e) => changeStatus(o, e.target.value as AdminOrder['status'])}
+                    >
+                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
+                </tr>
+              ))}
+              {visible.length === 0 && (
+                <tr><td colSpan={6} className="hint" style={{ textAlign: 'center', padding: 30 }}>No orders match.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}

@@ -1,0 +1,29 @@
+.admin-bills-dashboard {
+    padding: 20px;
+}
+
+.search-container {
+    margin-bottom: 20px;
+}
+
+.bills-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.bills-table th,
+.bills-table td {
+    border: 1px solid #ccc;
+    padding: 10px;
+    text-align: left;
+}
+
+.bills-table th {
+    background-color: #f4f4f4;
+}
+
+@media (max-width: 800px) {
+    .bills-table th, .bills-table td {
+        padding: 5px;
+    }
+}

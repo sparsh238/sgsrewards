@@ -1,0 +1,261 @@
+import { useEffect, useMemo, useState } from 'react';
+import { apiJson } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
+import { useToast } from '../../lib/toast';
+import { formatDate, formatNumber } from '../../lib/format';
+import { TIER_ORDER, type Tier } from '../../lib/tier';
+import Modal from '../../components/Modal';
+
+interface UserRow {
+  _id: string;
+  username: string;
+  partyName: string;
+  phoneNumber: string;
+  gstin?: string;
+  firstName?: string;
+  lastName?: string;
+  dateOfBirth?: string | null;
+  anniversaryDate?: string | null;
+  profileCompleted?: boolean;
+  userType: 'customer' | 'admin' | 'superadmin';
+  availablePoints: number;
+  tier: Tier;
+  blocked?: boolean;
+}
+
+type TierFilter = 'All' | Tier;
+
+export default function Users() {
+  const { auth } = useAuth();
+  const isSuper = auth.userType === 'superadmin';
+  const [users, setUsers] = useState<UserRow[] | null>(null);
+  const [query, setQuery] = useState('');
+  const [error, setError] = useState('');
+  const [addOpen, setAddOpen] = useState(false);
+  const [resetFor, setResetFor] = useState<UserRow | null>(null);
+  const [tab, setTab] = useState<'dealers' | 'team'>('dealers');
+  const [tierFilter, setTierFilter] = useState<TierFilter>('All');
+  const { toast, toastError } = useToast();
+
+  const listPath = isSuper ? '/api/superadmin/allusers' : '/api/admin/users';
+  const load = () => apiJson<UserRow[]>(listPath).then(setUsers).catch((e) => setError((e as Error).message));
+  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const patchLocal = (id: string, patch: Partial<UserRow>) =>
+    setUsers((list) => list?.map((u) => (u._id === id ? { ...u, ...patch } : u)) ?? null);
+
+  const toggleBlock = async (u: UserRow) => {
+    const next = !u.blocked;
+    patchLocal(u._id, { blocked: next });
+    try {
+      await apiJson(`/api/superadmin/users/${u._id}/block`, { method: 'POST', json: { blocked: next } });
+      toast(next ? `${u.partyName} blocked` : `${u.partyName} unblocked`);
+    } catch (err) { patchLocal(u._id, { blocked: !next }); toastError((err as Error).message); }
+  };
+
+  const changeTier = async (u: UserRow, newTier: Tier) => {
+    const prev = u.tier;
+    patchLocal(u._id, { tier: newTier });
+    try {
+      await apiJson('/api/superadmin/users/change-tier', { method: 'POST', json: { userId: u._id, newTier } });
+      toast(`${u.partyName} → ${newTier}`);
+    } catch (err) { patchLocal(u._id, { tier: prev }); toastError((err as Error).message); }
+  };
+
+  const dealers = useMemo(() => (users ?? []).filter((u) => u.userType === 'customer'), [users]);
+  const staff = useMemo(() => (users ?? []).filter((u) => u.userType !== 'customer'), [users]);
+  const tierCounts = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const u of dealers) c[u.tier] = (c[u.tier] ?? 0) + 1;
+    return c;
+  }, [dealers]);
+
+  const visible = useMemo(() => {
+    const base = tab === 'dealers' ? dealers : staff;
+    const q = query.trim().toLowerCase();
+    return base.filter((u) => {
+      if (tab === 'dealers' && tierFilter !== 'All' && u.tier !== tierFilter) return false;
+      if (!q) return true;
+      return u.partyName.toLowerCase().includes(q)
+        || (u.phoneNumber ?? '').includes(q)
+        || (u.gstin ?? '').toLowerCase().includes(q)
+        || `${u.firstName ?? ''} ${u.lastName ?? ''}`.toLowerCase().includes(q);
+    });
+  }, [tab, dealers, staff, tierFilter, query]);
+
+  const contactName = (u: UserRow) => [u.firstName, u.lastName].filter(Boolean).join(' ');
+
+  return (
+    <>
+      <div className="admin-head">
+        <div>
+          <h1>Dealers</h1>
+          <p className="page-sub">Dealer accounts, keyed by phone &amp; GSTIN. Staff live under Team.</p>
+        </div>
+        <div className="admin-toolbar">
+          <input className="input" placeholder="Search name / phone / GSTIN…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          {isSuper && <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setAddOpen(true)}>+ Add {tab === 'team' ? 'staff' : 'dealer'}</button>}
+        </div>
+      </div>
+
+      {isSuper && (
+        <div className="admin-tabs">
+          <button className={`atab${tab === 'dealers' ? ' on' : ''}`} onClick={() => setTab('dealers')}>Dealers <b>{dealers.length}</b></button>
+          <button className={`atab${tab === 'team' ? ' on' : ''}`} onClick={() => setTab('team')}>Team <b>{staff.length}</b></button>
+        </div>
+      )}
+
+      {tab === 'dealers' && (
+        <div className="chip-row">
+          <button className={`fchip${tierFilter === 'All' ? ' on' : ''}`} onClick={() => setTierFilter('All')}>All <b className="fc-n">{dealers.length}</b></button>
+          {[...TIER_ORDER].reverse().map((t) => (
+            <button key={t} className={`fchip${tierFilter === t ? ' on' : ''}`} onClick={() => setTierFilter(t)}>{t === 'NoTier' ? 'NoTier' : `◆ ${t}`} <b className="fc-n">{tierCounts[t] ?? 0}</b></button>
+          ))}
+        </div>
+      )}
+
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {users === null && !error && <div className="skeleton" style={{ height: 200 }} />}
+
+      {users !== null && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead>
+              <tr>
+                <th>{tab === 'dealers' ? 'Dealer' : 'Staff'}</th><th>Phone</th>
+                {tab === 'dealers' ? <><th>GSTIN</th><th>DOB · Anniv.</th></> : isSuper && <th>Role</th>}
+                <th>Points</th><th>Tier</th>{isSuper && <th>Access</th>}{isSuper && <th></th>}
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((u) => (
+                <tr key={u._id}>
+                  <td>
+                    <div className="t-strong">{u.partyName}</div>
+                    <div className="hint">{contactName(u) || (tab === 'dealers' && !u.profileCompleted ? <span className="pending">profile pending</span> : '—')}</div>
+                  </td>
+                  <td className="t-num">{u.phoneNumber}</td>
+                  {tab === 'dealers' ? (
+                    <>
+                      <td className="t-mono">{u.gstin || '—'}</td>
+                      <td className="hint">{u.dateOfBirth ? formatDate(u.dateOfBirth) : '—'}{u.anniversaryDate ? ` · ${formatDate(u.anniversaryDate)}` : ''}</td>
+                    </>
+                  ) : isSuper && <td className="hint">{u.userType}</td>}
+                  <td className="t-num">{formatNumber(u.availablePoints)}</td>
+                  <td>
+                    {isSuper && u.userType === 'customer' ? (
+                      <select className="input" style={{ padding: '5px 8px', width: 118 }} value={u.tier} onChange={(e) => changeTier(u, e.target.value as Tier)}>
+                        {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    ) : <span className="hint">{u.tier}</span>}
+                  </td>
+                  {isSuper && (
+                    <td><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
+                  )}
+                  {isSuper && (
+                    <td><div className="t-actions"><button className="mini-btn" onClick={() => setResetFor(u)}>{u.userType === 'customer' ? 'Reset PIN' : 'Reset password'}</button></div></td>
+                  )}
+                </tr>
+              ))}
+              {visible.length === 0 && <tr><td colSpan={8} className="hint" style={{ textAlign: 'center', padding: 30 }}>No {tab} found.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {addOpen && <AddUserModal isSuper={isSuper} defaultStaff={tab === 'team'} onClose={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); load(); }} />}
+      {resetFor && <ResetModal user={resetFor} onClose={() => setResetFor(null)} />}
+    </>
+  );
+}
+
+function AddUserModal({ isSuper, defaultStaff, onClose, onSaved }: { isSuper: boolean; defaultStaff: boolean; onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ username: '', partyName: '', phoneNumber: '', gstin: '', password: '', pin: '', userType: defaultStaff ? 'admin' : 'customer' });
+  const [busy, setBusy] = useState(false);
+  const { toast, toastError } = useToast();
+  const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const isCustomer = form.userType === 'customer';
+
+  const save = async () => {
+    if (!form.partyName || !form.phoneNumber) { toastError('Party name and phone are required.'); return; }
+    if (isCustomer) { if (!/^\d{4}$/.test(form.pin)) { toastError('Temp PIN must be exactly 4 digits.'); return; } }
+    else if (!form.username || !form.password) { toastError('Username and password are required for staff.'); return; }
+    setBusy(true);
+    try {
+      if (isCustomer) {
+        const body = { partyName: form.partyName, phoneNumber: form.phoneNumber, gstin: form.gstin, pin: form.pin };
+        await apiJson(isSuper ? '/api/superadmin/sausers' : '/api/admin/add-customer', { method: 'POST', json: isSuper ? { ...body, userType: 'customer' } : body });
+      } else {
+        await apiJson('/api/superadmin/sausers', { method: 'POST', json: { username: form.username, partyName: form.partyName, phoneNumber: form.phoneNumber, password: form.password, userType: form.userType } });
+      }
+      toast('Account created');
+      onSaved();
+    } catch (err) { toastError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title={isCustomer ? 'Add dealer' : 'Add staff'} onClose={onClose}>
+      <div className="form-grid">
+        {isSuper && (
+          <div className="field full"><label htmlFor="rt">Role</label>
+            <select id="rt" className="input" value={form.userType} onChange={set('userType')}>
+              <option value="customer">dealer (customer)</option><option value="admin">admin</option><option value="superadmin">superadmin</option>
+            </select></div>
+        )}
+        <div className="field"><label htmlFor="pn">Party name</label><input id="pn" className="input" value={form.partyName} onChange={set('partyName')} /></div>
+        <div className="field"><label htmlFor="ph">Phone</label><input id="ph" className="input" inputMode="numeric" value={form.phoneNumber} onChange={set('phoneNumber')} /></div>
+        {isCustomer ? (
+          <>
+            <div className="field"><label htmlFor="gst">GSTIN</label><input id="gst" className="input" value={form.gstin} onChange={set('gstin')} /></div>
+            <div className="field"><label htmlFor="pin">Temp PIN (4 digits)</label><input id="pin" className="input num" inputMode="numeric" maxLength={4} value={form.pin} onChange={(e) => setForm((f) => ({ ...f, pin: e.target.value.replace(/\D/g, '').slice(0, 4) }))} /></div>
+          </>
+        ) : (
+          <>
+            <div className="field"><label htmlFor="u">Username</label><input id="u" className="input" value={form.username} onChange={set('username')} /></div>
+            <div className="field full"><label htmlFor="pw">Temp password</label><input id="pw" className="input" value={form.password} onChange={set('password')} /></div>
+          </>
+        )}
+      </div>
+      <p className="hint">{isCustomer ? 'The dealer logs in with their phone + this PIN, then sets their own.' : 'The staff member sets their own password on first login.'}</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ResetModal({ user, onClose }: { user: { _id: string; partyName: string; userType: string }; onClose: () => void }) {
+  const [val, setVal] = useState('');
+  const [busy, setBusy] = useState(false);
+  const { toast, toastError } = useToast();
+  const isCustomer = user.userType === 'customer';
+
+  const save = async () => {
+    if (isCustomer) { if (!/^\d{4}$/.test(val)) { toastError('Temp PIN must be exactly 4 digits.'); return; } }
+    else if (val.length < 6) { toastError('Password must be at least 6 characters.'); return; }
+    setBusy(true);
+    try {
+      await apiJson(`/api/superadmin/users/${user._id}/reset-password`, { method: 'POST', json: { newPassword: val } });
+      toast(isCustomer ? `PIN reset for ${user.partyName}` : `Password reset for ${user.partyName}`);
+      onClose();
+    } catch (err) { toastError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title={`${isCustomer ? 'Reset PIN' : 'Reset password'} · ${user.partyName}`} onClose={onClose}>
+      <div className="field">
+        <label htmlFor="np">{isCustomer ? 'New temporary PIN (4 digits)' : 'New temporary password'}</label>
+        <input id="np" className={`input${isCustomer ? ' num' : ''}`} inputMode={isCustomer ? 'numeric' : undefined} maxLength={isCustomer ? 4 : undefined}
+          value={val} onChange={(e) => setVal(isCustomer ? e.target.value.replace(/\D/g, '').slice(0, 4) : e.target.value)} />
+      </div>
+      <p className="hint">{isCustomer ? 'The dealer sets their own PIN at next login.' : 'The staff member sets their own password at next login.'}</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button>
+      </div>
+    </Modal>
+  );
+}

@@ -1,0 +1,47 @@
+.system-dashboard {
+    padding: 20px;
+}
+
+.system-dashboard h1 {
+    margin-bottom: 20px;
+}
+
+.points-conversion {
+    display: flex;
+    align-items: center;
+    font-size: 24px;
+}
+
+.points-conversion label {
+    margin-right: 10px;
+    font-size: 24px;
+}
+
+.points-conversion input {
+    margin-right: 10px;
+    padding: 5px;
+    font-size: 24px;
+}
+
+.points-conversion button {
+    padding: 5px 10px;
+    font-size: 16px;
+    cursor: pointer;
+    margin-left: 15px;
+    border: none;
+    background-color: blue;
+    color: white;
+    border-radius: 4px;
+}
+
+@media (max-width: 768px) {
+    .points-conversion {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    .points-conversion input,
+    .points-conversion button {
+        margin-bottom: 10px;
+        font-size: 20px;
+    }
+}

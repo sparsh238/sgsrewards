@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+build/
+
+# environment / secrets (real secrets never committed)
+.env
+.env.local
+.env.*.local
+
+# runtime user uploads (not source)
+backend/uploads/
+
+# OS / editor / logs
+.DS_Store
+*.log
+.cache/
+coverage/

@@ -1,0 +1,23 @@
+.help-container {
+    padding: 20px;
+    text-align: center;
+    margin-top: 60px;
+}
+
+.contact-card {
+    margin: 20px auto;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    max-width: 500px;
+}
+
+.contact-card h2 {
+    margin: 0;
+    font-size: 1.5em;
+}
+
+.contact-card p {
+    margin: 5px 0;
+    font-size: 1.2em;
+}

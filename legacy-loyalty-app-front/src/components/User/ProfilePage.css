@@ -1,0 +1,109 @@
+.profile-page {
+    padding: 20px;
+    max-width: 50%;
+    margin: auto;
+}
+
+.profile-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 20px;
+    background-color: #145c49;
+    border: 1px solid #ddd;
+    border-radius: 10px;
+    padding: 20px;
+    color: #ffdd8f;
+}
+
+.profile-info {
+    text-align: center;
+}
+
+.profile-info h2 {
+    margin: 0;
+    font-size: 1.35em;
+}
+
+.profile-info p {
+    margin: 10px 0;
+    font-size: 1.2em;
+}
+
+.logout-button {
+    background-color: red;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 5px;
+}
+
+.orders-section, .bills-section {
+    margin-top: 20px;
+}
+
+.orders-container, .bills-container {
+    display: flex;
+    flex-direction: column;
+    padding-top: 10px;
+}
+
+.orders-status {
+    margin-bottom: 20px;
+    cursor: pointer;
+}
+
+.orders-status h4 {
+    background-color: #f4f4f4;
+    padding: 10px;
+    margin: 0;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.orders-status.active h4 {
+    background-color: #ddd;
+}
+
+.accordion-arrow {
+    font-size: 0.8em;
+}
+
+.order-card, .bill-card {
+    background-color: white;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    padding: 10px;
+    margin-top: 10px;
+    width: 100%;
+}
+
+.order-header, .bill-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+}
+
+.order-items, .bill-total {
+    margin: 10px 0;
+    text-align: left;
+}
+
+.order-total, .bill-total {
+    text-align: right;
+    font-weight: bold;
+}
+
+.order-item {
+    margin-bottom: 5px;
+}
+
+@media (max-width: 768px) {
+    .profile-page{
+        max-width: 100%;
+    }
+}

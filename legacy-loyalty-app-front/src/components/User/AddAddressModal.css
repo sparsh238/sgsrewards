@@ -1,0 +1,42 @@
+.add-address-form {
+    display: flex;
+    flex-direction: column;
+    padding: 20px;
+}
+
+.add-address-form input,
+.add-address-form select,
+.add-address-form button {
+    margin: 10px 0;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.add-address-form button {
+    background-color: #145c49;
+    color: #ffdd8f;
+}
+
+.add-address-form button:last-child {
+    background-color: white;
+    color: black;
+    border: 1px solid black;
+}
+
+.address-default-text {
+    text-align: center;
+    font-size: .8em;
+}
+
+@media (max-width: 768px) {
+    .add-address-form {
+        padding: 10px;
+    }
+
+    .add-address-form input,
+    .add-address-form select,
+    .add-address-form button {
+        padding: 6px;
+    }
+}

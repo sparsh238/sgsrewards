@@ -1,0 +1,126 @@
+.admin-orders-dashboard {
+    padding: 20px;
+}
+
+.admin-heading-order {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.admin-search-container {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.admin-search-container input {
+    padding: 10px;
+    width: 80%;
+    max-width: 500px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+}
+
+.admin-orders-section {
+    margin-bottom: 20px;
+}
+
+.admin-orders-section h2 {
+    background-color: #f4f4f4;
+    padding: 10px;
+    margin: 0;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+}
+
+.admin-orders-section h2 .admin-accordion-arrow {
+    font-size: 0.8em;
+}
+
+.admin-order-entry {
+    border: 1px solid #ccc;
+    width: 80%;
+    padding: 20px;
+    margin: 10px auto;
+    border-radius: 8px;
+    background-color: #f9f9f9;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.admin-order-header {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+}
+
+.admin-order-header p {
+    margin: 0;
+}
+
+.admin-order-details {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    text-align: left;
+}
+
+.admin-order-items {
+    margin: 10px 0;
+}
+
+.admin-order-items h4 {
+    margin: 0;
+    font-weight: bold;
+}
+
+.admin-order-items ul {
+    list-style-type: none;
+    padding-left: 0;
+    margin: 5px 0;
+}
+
+.admin-order-items li {
+    margin: 5px 0;
+}
+
+.admin-order-address {
+    margin: 10px 0;
+}
+
+.admin-order-total {
+    text-align: right;
+    font-weight: bold;
+    margin-top: 10px;
+    align-items: flex-end;
+}
+
+.admin-order-entry button {
+    padding: 10px 20px;
+    border: none;
+    background-color: blue;
+    color: white;
+    cursor: pointer;
+    border-radius: 4px;
+    align-self: center;
+}
+
+.admin-order-entry button:hover {
+    background-color: darkblue;
+}
+
+@media (max-width: 800px) {
+    .admin-order-entry {
+        width: 100%;
+    }
+
+
+
+    .admin-order-total {
+        text-align: right;
+    }
+}

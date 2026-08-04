@@ -1,0 +1,49 @@
+.buy-now-container {
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 40%;
+    margin: auto;
+}
+
+.buy-now-item-card {
+    display: flex;
+    align-items: center;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 10px;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.buy-now-item-image {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    margin-right: 10px;
+}
+
+.buy-now-item-details {
+    flex: 1;
+    text-align: left;
+    margin-right: 10px;
+}
+
+.buy-now-item-name {
+    font-size: 1.2em;
+    margin: 0;
+}
+
+.buy-now-item-points {
+    font-size: 1em;
+    color: #777;
+    margin: 5px 0;
+}
+
+
+@media (max-width: 768px){
+    .buy-now-container{
+        width: 100%;
+    }
+}

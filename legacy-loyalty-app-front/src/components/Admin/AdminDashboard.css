@@ -1,0 +1,73 @@
+.admin-dashboard {
+    padding: 20px;
+}
+
+.dashboard-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.add-user-button,
+.upload-file-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    margin-left: 10px;
+}
+
+.search-container {
+    margin-bottom: 20px;
+}
+
+.search-container input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.admin-user-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.admin-user-table th,
+.admin-user-table td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
+}
+
+.admin-user-table th {
+    background-color: #f4f4f4;
+}
+
+.admin-user-table tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.admin-user-table tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* .admin-user-table input[type="checkbox"] {
+    cursor: pointer;
+} */
+
+.admin-user-table button {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.admin-user-table button:hover {
+    background-color: #218838;
+}
