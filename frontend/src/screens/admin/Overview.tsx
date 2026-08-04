@@ -113,6 +113,9 @@ export default function OverviewScreen() {
           {regions.map((r) => {
             const billedRows = r.dealers.filter((d) => d.billed > 0);
             const noBills = r.dealers.filter((d) => d.billed <= 0);
+            // Of the no-bills dealers, only the tiered ones are actually at risk of
+            // dropping — a NoTier in-scheme dealer has nothing to drop from.
+            const noBillsAtRisk = noBills.filter((d) => d.status === 'atRisk').length;
             const moreOpen = q ? true : !!showDorm[r.region];
             return (
               <div className="ov-region" key={r.region}>
@@ -129,14 +132,14 @@ export default function OverviewScreen() {
                 {isOpen(r.region) && (
                   <div className="ov-rbody">
                     {billedRows.length === 0 && noBills.length > 0 && !moreOpen && (
-                      <div className="ov-allquiet">No dealer has billed this window — all {noBills.length} at risk of drop (no bills).</div>
+                      <div className="ov-allquiet">No dealer has billed this window — {noBills.length} with no bills{noBillsAtRisk > 0 ? `, ${noBillsAtRisk} at risk of drop` : ''}.</div>
                     )}
                     {billedRows.map((d) => <DealerLine d={d} key={d.partyName} />)}
                     {noBills.length > 0 && (
                       <>
                         {!q && (
                           <button className="ov-dormtoggle" onClick={() => setShowDorm((s) => ({ ...s, [r.region]: !s[r.region] }))}>
-                            {moreOpen ? '▾ Hide' : '▸ Show'} {noBills.length} with no bills this window · at risk
+                            {moreOpen ? '▾ Hide' : '▸ Show'} {noBills.length} with no bills this window{noBillsAtRisk > 0 ? ` · ${noBillsAtRisk} at risk` : ''}
                           </button>
                         )}
                         {moreOpen && noBills.map((d) => <DealerLine d={d} key={d.partyName} />)}
