@@ -198,12 +198,15 @@ export const editBill = async (req: Request, res: Response) => {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
 
+        // Out-of-scheme dealers never earn — the same guard addBill applies, so an
+        // edit can't quietly start crediting a redeem-only dealer.
+        const earns = (user as { inScheme?: boolean }).inScheme !== false;
         // Reverse exactly what was granted (from the stored value; recompute only
         // for legacy bills that predate pointsAwarded), then grant the new amount.
         const oldPoints = typeof bill.pointsAwarded === 'number'
             ? bill.pointsAwarded
-            : pointsForBill(bill.billAmount, user.tier, systemConfig);
-        const newPoints = pointsForBill(billAmount, user.tier, systemConfig);
+            : (earns ? pointsForBill(bill.billAmount, user.tier, systemConfig) : 0);
+        const newPoints = earns ? pointsForBill(billAmount, user.tier, systemConfig) : 0;
         const pointsDifference = newPoints - oldPoints;
 
         if (pointsDifference !== 0) {
@@ -243,10 +246,12 @@ export const deleteBill = async (req: Request, res: Response) => {
         }
 
         // Subtract exactly what was granted (stored value; recompute only for
-        // legacy bills). Balances are floored at 0 by adjustUserPoints.
+        // legacy bills). Out-of-scheme dealers never earned, so never subtract.
+        // Balances are floored at 0 by adjustUserPoints.
+        const earns = (user as { inScheme?: boolean }).inScheme !== false;
         const pointsToSubtract = typeof bill.pointsAwarded === 'number'
             ? bill.pointsAwarded
-            : pointsForBill(bill.billAmount, user.tier, systemConfig);
+            : (earns ? pointsForBill(bill.billAmount, user.tier, systemConfig) : 0);
 
         if (pointsToSubtract > 0) {
             await adjustUserPoints(user._id, -pointsToSubtract, -pointsToSubtract);

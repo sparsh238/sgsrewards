@@ -13,6 +13,7 @@ interface Order extends Document {
   status: 'Pending' | 'Completed' | 'Cancelled';
   address?: ObjectId; // optional — dealers no longer pick a delivery address
   orderIdAlias: string; // New field
+  pointsRefunded: boolean; // true while the order's points sit refunded (Cancelled)
 }
 
 const orderSchema = new Schema<Order>({
@@ -27,7 +28,8 @@ const orderSchema = new Schema<Order>({
   orderDate: { type: Date, default: Date.now },
   status: { type: String, enum: ['Pending', 'Completed', 'Cancelled'], default: 'Pending' },
   address: { type: Schema.Types.ObjectId, ref: 'Address' },
-  orderIdAlias: { type: String, required: true, unique: true } // New field
+  orderIdAlias: { type: String, required: true, unique: true }, // New field
+  pointsRefunded: { type: Boolean, default: false },
 });
 
 // Generate a unique orderIdAlias before validation, so the required field is

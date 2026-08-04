@@ -471,6 +471,8 @@ button:focus-visible, a:focus-visible, input:focus-visible {
 .rung-l.next .r-right { color: var(--copper-hi); }
 .rung-l.ahead { opacity: 0.45; }
 .rung-l.ahead .r-right { color: var(--muted); }
+.rung-l.defend { border-color: rgba(224, 122, 122, 0.4); background: rgba(224, 122, 122, 0.06); }
+.rung-l.defend .r-right { color: #E07A7A; }
 .rung-l.current { border-color: var(--copper); background: rgba(208, 138, 78, 0.1); opacity: 1; }
 .rung-connect { width: 2px; height: 9px; background: var(--hairline); margin-left: 24px; }
 .youdot { font-size: 9px; font-weight: 800; color: var(--on-copper); background: var(--copper-hi); border-radius: 999px; padding: 1px 7px; margin-left: 7px; vertical-align: 1px; }

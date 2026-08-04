@@ -54,8 +54,10 @@ export default function Bills() {
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
 
-  useEffect(() => { const t = setTimeout(() => setDebounced(search), 300); return () => clearTimeout(t); }, [search]);
-  useEffect(() => { setPage(1); }, [period, region, source, debounced]);
+  // Reset to page 1 in the SAME update as any filter change (below and in the
+  // select handlers) — a separate reset-effect would let load() fire once with a
+  // stale page before the reset lands, racing two requests.
+  useEffect(() => { const t = setTimeout(() => { setPage(1); setDebounced(search); }, 300); return () => clearTimeout(t); }, [search]);
 
   const load = () => {
     const p = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
@@ -102,21 +104,21 @@ export default function Bills() {
       </div>
 
       <div className="chip-row" style={{ gap: 10 }}>
-        <select className="input" style={{ width: 'auto' }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+        <select className="input" style={{ width: 'auto' }} value={period} onChange={(e) => { setPage(1); setPeriod(e.target.value); }}>
           <option value="">All months</option>
           {periods.map((p) => <option key={p} value={p}>{periodLabel(p)}</option>)}
         </select>
-        <select className="input" style={{ width: 'auto' }} value={region} onChange={(e) => setRegion(e.target.value)}>
+        <select className="input" style={{ width: 'auto' }} value={region} onChange={(e) => { setPage(1); setRegion(e.target.value); }}>
           <option value="">All areas</option>
           {regions.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
-        <select className="input" style={{ width: 'auto' }} value={source} onChange={(e) => setSource(e.target.value)}>
+        <select className="input" style={{ width: 'auto' }} value={source} onChange={(e) => { setPage(1); setSource(e.target.value); }}>
           <option value="">All sources</option>
           <option value="manual">Manual</option>
           <option value="busy">Busy sync</option>
         </select>
         {(period || region || source || debounced) && (
-          <button className="fchip" onClick={() => { setPeriod(''); setRegion(''); setSource(''); setSearch(''); }}>Clear filters</button>
+          <button className="fchip" onClick={() => { setPage(1); setPeriod(''); setRegion(''); setSource(''); setSearch(''); }}>Clear filters</button>
         )}
       </div>
 

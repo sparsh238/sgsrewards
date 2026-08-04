@@ -85,8 +85,9 @@ export default function TierNudge({ nudge, onOpen }: { nudge: Nudge; onOpen: () 
         </div>
       )}
 
-      {/* Advance bar — the single next rung (hidden for top tier) */}
-      {nudge.advanceTier && (
+      {/* Advance bar — the single next rung. Hidden while at risk: defend the
+          current tier first, don't push a higher one at the same time. */}
+      {state !== 'risk' && nudge.advanceTier && (
         <div className="adv">
           <div className="adv-top">
             <span className="adv-name">⬆ Advance to {nudge.advanceTier}</span>

@@ -60,7 +60,9 @@ const deleteItem = async (req: Request, res: Response) => {
 
 const getItems = async (req: Request, res: Response) => {
     try {
-      const items = await Item.find();
+      // Dealers only see live rewards; staff see everything (to manage hidden ones).
+      const filter = req.user?.userType === 'customer' ? { isActive: { $ne: false } } : {};
+      const items = await Item.find(filter);
       res.json(items);
     } catch (error) {
       res.status(500).json({ message: 'Internal server error', error });

@@ -19,6 +19,7 @@ export default function Product() {
   // the DEALER'S CURRENT TIER rate, not a flat conversion — a Basic dealer
   // needs far more billing per point than a Platinum one.
   const [rates, setRates] = useState<Record<string, number>>({});
+  const [earns, setEarns] = useState(true); // false = redeem-only (can't reach goals by billing)
   const [error, setError] = useState('');
   const [img, setImg] = useState(0);
   const [qty, setQty] = useState(1);
@@ -30,15 +31,17 @@ export default function Product() {
     let cancelled = false;
     (async () => {
       try {
-        const [it, pts, conv] = await Promise.all([
+        const [it, pts, conv, prof] = await Promise.all([
           apiJson<Item>(`/api/item/itm/${id}`),
           apiJson<{ availablePoints: number }>('/api/user/points'),
           apiJson<{ tierPointsConversion: Record<string, number> }>('/api/superadmin/system/points-conversion'),
+          apiJson<{ inScheme?: boolean }>('/api/user/profile'),
         ]);
         if (cancelled) return;
         setItem(it);
         setPoints(pts.availablePoints);
         setRates(conv.tierPointsConversion || {});
+        setEarns(prof.inScheme !== false);
       } catch (err) {
         if (!cancelled) setError((err as Error).message);
       }
@@ -114,8 +117,11 @@ export default function Product() {
         {rate > 0 && state !== 'goal' && (
           <p className="billing-worth num">≈ {formatRupees(price * rate)} billing value at your tier</p>
         )}
-        {rate > 0 && state === 'goal' && (
+        {rate > 0 && state === 'goal' && earns && (
           <p className="billing-need num">Bill <b>{formatRupees(short * rate)}</b> more to unlock this</p>
+        )}
+        {state === 'goal' && !earns && (
+          <p className="billing-need num">This is a redeem-only account — it doesn’t earn new points.</p>
         )}
       </div>
 
@@ -143,7 +149,7 @@ export default function Product() {
             <div className="rc-goalbar"><span style={{ width: `${progress}%` }} /></div>
             <div className="goal-gap num">{formatNumber(short)} pts to go</div>
             <div className="goal-note num">
-              You're at <b>{formatNumber(points ?? 0)} / {formatNumber(price)}</b>. Keep billing — it unlocks automatically.
+              You're at <b>{formatNumber(points ?? 0)} / {formatNumber(price)}</b>.{earns ? ' Keep billing — it unlocks automatically.' : ' This account can only redeem existing points.'}
             </div>
           </div>
           <div className="locked-cta num">🔒 {formatNumber(short)} pts to go</div>

@@ -9,7 +9,7 @@ const router = Router();
 router.post('/', authMiddleware('admin','superadmin'), upload, addItem);
 router.put('/:id', authMiddleware('admin','superadmin'), upload, updateItem);
 router.delete('/:id', authMiddleware('admin','superadmin'), deleteItem);
-router.get('/', getItems);
-router.get('/itm/:id', getItemById);
+router.get('/', authMiddleware('customer', 'admin', 'superadmin'), getItems);
+router.get('/itm/:id', authMiddleware('customer', 'admin', 'superadmin'), getItemById);
 
 export default router;

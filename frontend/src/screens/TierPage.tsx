@@ -119,9 +119,11 @@ export default function TierPage() {
                   <div className="r-right num">
                     {r.status === 'crossed'
                       ? (r.isCurrent ? '✓ held' : '✓')
-                      : r.status === 'next'
-                        ? `${formatRupees(r.toClimb)} to climb ▲`
-                        : `${formatRupees(r.toClimb)} away`}
+                      : r.status === 'defend'
+                        ? `${formatRupees(r.toClimb)} to keep ▼`
+                        : r.status === 'next'
+                          ? `${formatRupees(r.toClimb)} to climb ▲`
+                          : `${formatRupees(r.toClimb)} away`}
                   </div>
                 </div>
                 {i < rungs.length - 1 && <div className="rung-connect" />}

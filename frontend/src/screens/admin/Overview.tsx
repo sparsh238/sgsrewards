@@ -36,8 +36,20 @@ export default function OverviewScreen() {
   const regions = useMemo(() => {
     if (!data) return [];
     if (!q) return data.regions;
+    // Recompute the header counts from the filtered set so the region row's
+    // "N dealers ▲x ▼y ₹z" matches the rows actually shown while searching.
     return data.regions
-      .map((r) => ({ ...r, dealers: r.dealers.filter((d) => d.partyName.toLowerCase().includes(q)) }))
+      .map((r) => {
+        const dealers = r.dealers.filter((d) => d.partyName.toLowerCase().includes(q));
+        return {
+          ...r,
+          dealers,
+          count: dealers.length,
+          promotingCount: dealers.filter((d) => d.status === 'promoting').length,
+          atRiskCount: dealers.filter((d) => d.status === 'atRisk').length,
+          billed: dealers.reduce((s, d) => s + d.billed, 0),
+        };
+      })
       .filter((r) => r.dealers.length > 0);
   }, [data, q]);
 
@@ -86,7 +98,7 @@ export default function OverviewScreen() {
           <div className="kpi-row">
             <div className="kpi"><div className="k-lab">In-scheme dealers</div><div className="k-val num">{formatNumber(data.totals.dealers)}</div></div>
             <div className="kpi"><div className="k-lab">Billed this window</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{formatNumber(data.totals.billing)}</div></div>
-            <div className="kpi"><div className="k-lab">On track to promote</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{data.totals.promoting}</div></div>
+            <div className="kpi"><div className="k-lab">On track to promote</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{formatNumber(data.totals.promoting)}</div></div>
             <div className="kpi"><div className="k-lab">At risk of drop</div><div className="k-val num" style={{ color: '#E07A7A' }}>{formatNumber(data.totals.atRisk)}</div></div>
           </div>
 

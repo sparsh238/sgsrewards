@@ -255,14 +255,18 @@ const updateOrderStatus = async (req: Request, res: Response) => {
       return res.status(404).send({ error: 'Order not found' });
     }
 
-    // If the status is being changed to "Cancelled", refund the points
-    // atomically. Guarded by the status check so a re-cancel is a no-op.
+    // Refund/re-charge points, gated on a `pointsRefunded` flag so the refund is
+    // idempotent: cancelling refunds once; re-opening a cancelled order re-deducts
+    // (floored at 0); toggling Cancelled↔Pending can never double-refund.
     // (Stock is not tracked — gifts are procured per order.)
-    if (status === 'Cancelled' && order.status !== 'Cancelled') {
-      await User.updateOne(
-        { _id: order.userId },
-        { $inc: { availablePoints: order.totalValue } }
-      );
+    if (status === 'Cancelled' && !order.pointsRefunded) {
+      await User.updateOne({ _id: order.userId }, { $inc: { availablePoints: order.totalValue } });
+      order.pointsRefunded = true;
+    } else if (status !== 'Cancelled' && order.pointsRefunded) {
+      await User.updateOne({ _id: order.userId }, [
+        { $set: { availablePoints: { $max: [0, { $subtract: ['$availablePoints', order.totalValue] }] } } },
+      ]);
+      order.pointsRefunded = false;
     }
 
     // Update the order status

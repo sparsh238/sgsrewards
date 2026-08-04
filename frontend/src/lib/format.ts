@@ -2,13 +2,15 @@
 export const formatNumber = (n: number): string =>
   n.toLocaleString('en-IN');
 
-/** 320000 -> "₹3.2L", 80000 -> "₹80,000" — compact rupee display for billing. */
+/** 320000 -> "₹3.2L", 15000000 -> "₹1.5Cr", 80000 -> "₹80,000" — compact rupee display. */
+const compact = (n: number, unit: number, suffix: string): string => {
+  const v = Math.round((n / unit) * 10) / 10;
+  return `₹${Number.isInteger(v) ? v.toFixed(0) : v.toFixed(1)}${suffix}`;
+};
 export const formatRupees = (n: number): string => {
-  if (Math.abs(n) >= 100000) {
-    const lakhs = n / 100000;
-    const rounded = Math.round(lakhs * 10) / 10;
-    return `₹${Number.isInteger(rounded) ? rounded.toFixed(0) : rounded.toFixed(1)}L`;
-  }
+  const abs = Math.abs(n);
+  if (abs >= 10000000) return compact(n, 10000000, 'Cr'); // ≥ 1 crore
+  if (abs >= 100000) return compact(n, 100000, 'L');       // ≥ 1 lakh
   return `₹${formatNumber(Math.round(n))}`;
 };
 

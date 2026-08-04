@@ -102,7 +102,8 @@ function sumBills(bills: Bill[], startMs: number, endMs: number): { billed: numb
 /** Bill amounts and awarded points for the current calendar month. */
 export function thisMonth(bills: Bill[], now = new Date()): { billed: number; earned: number } {
   const start = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
-  return sumBills(bills, start, now.getTime() + 86_400_000);
+  const end = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+  return sumBills(bills, start, end);
 }
 
 /** Bill amounts and awarded points for the current quarter. */
@@ -290,9 +291,9 @@ export interface Rung {
   tier: Exclude<Tier, 'NoTier'>;
   requirement: number | null;
   rate: number | null;          // ₹ billed per 1 point
-  status: 'crossed' | 'next' | 'ahead';
+  status: 'crossed' | 'defend' | 'next' | 'ahead';
   isCurrent: boolean;           // the dealer's stored tier
-  toClimb: number;              // ₹ remaining to cross (0 if crossed)
+  toClimb: number;              // ₹ remaining to cross/re-secure (0 if crossed)
 }
 
 // Ladder for the Tier page, top (Platinum) → bottom (Basic).
@@ -309,7 +310,11 @@ export function tierLadder(
   const rungs: Rung[] = EARN_TIERS.map((t) => {
     const req = requirements[t] ?? null;
     const crossed = req !== null && billed >= req;
-    const status: Rung['status'] = crossed ? 'crossed' : t === nudge.advanceTier ? 'next' : 'ahead';
+    // The dealer's own tier, when this quarter's billing hasn't re-cleared it yet,
+    // is being DEFENDED (needs re-billing to keep) — not "away" like an unreached rung.
+    const status: Rung['status'] = crossed ? 'crossed'
+      : t === currentTier ? 'defend'
+        : t === nudge.advanceTier ? 'next' : 'ahead';
     return {
       tier: t,
       requirement: req,

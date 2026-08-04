@@ -22,7 +22,9 @@ router.get('/cart', authMiddleware('customer'), viewCart);
 router.post('/cart/checkout', authMiddleware('customer'), checkout);
 // change-password is used by staff (admin/superadmin) for their forced first
 // reset; dealers use set-pin instead.
-router.post('/change-password', authMiddleware('customer', 'admin', 'superadmin'), changePassword);
+// Staff only — dealers set a 4-digit PIN via /set-pin. Allowing a dealer to set a
+// free-form password here would lock them out of PIN login (loginWithPin needs 4 digits).
+router.post('/change-password', authMiddleware('admin', 'superadmin'), changePassword);
 router.post('/set-pin', authMiddleware('customer'), setPin);
 
 export default router;
