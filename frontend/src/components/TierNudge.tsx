@@ -13,24 +13,38 @@ export default function TierNudge({ nudge, onOpen }: { nudge: Nudge; onOpen: () 
     </span>
   );
 
-  // ---- Out of scheme (NoTier): re-entry, not a gauge ----
+  // ---- NoTier: either qualified-and-pending-enrolment, or genuinely below the floor ----
   if (state === 'notier') {
+    // Billing this quarter already clears the Basic floor → they've QUALIFIED and
+    // will be enrolled at the next quarter review. Don't say "below the minimum".
+    const qualified = nudge.reentryReq !== null && billed >= nudge.reentryReq;
     return (
       <button className="card tap-card nudge" onClick={onOpen} aria-label="View your tier">
-        <div className="out-box">
-          <div className="out-title">⚠️ You're out of the rewards scheme</div>
-          <div className="out-sub num">
-            Only {formatRupees(billed)} billed this quarter{nudge.reentryReq !== null && <> — below the {formatRupees(nudge.reentryReq)} Basic minimum</>}.
-          </div>
+        <div className={`out-box${qualified ? ' in' : ''}`}>
+          {qualified ? (
+            <>
+              <div className="out-title in">🎉 You've qualified{nudge.securedTier ? ` for ${nudge.securedTier}` : ''}!</div>
+              <div className="out-sub num">
+                {formatRupees(billed)} billed this quarter — you'll be enrolled{nudge.securedTier ? ` at ${nudge.securedTier}` : ''} at the next quarter review.
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="out-title">⚠️ You're out of the rewards scheme</div>
+              <div className="out-sub num">
+                Only {formatRupees(billed)} billed this quarter{nudge.reentryReq !== null && <> — below the {formatRupees(nudge.reentryReq)} Basic minimum</>}.
+              </div>
+            </>
+          )}
         </div>
-        {nudge.reentryReq !== null && (
+        {!qualified && nudge.reentryReq !== null && (
           <div className="adv">
             <div className="adv-top">
-              <span className="adv-name">↩ Get back in at Basic</span>
+              <span className="adv-name">↩ Get in at Basic</span>
               <span className="adv-need num">{formatRupees(nudge.toReenter)} to go</span>
             </div>
             <div className="adv-track"><span style={{ width: `${nudge.reentryReq ? Math.min(100, (billed / nudge.reentryReq) * 100) : 0}%` }} /></div>
-            <div className="adv-note">Re-enter the scheme and start earning again.</div>
+            <div className="adv-note">Reach the Basic minimum to start earning.</div>
           </div>
         )}
         {weekly(nudge)}

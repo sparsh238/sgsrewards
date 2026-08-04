@@ -210,6 +210,7 @@ export interface Nudge {
   // Re-entry (NoTier only)
   reentryReq: number | null;
   toReenter: number;
+  securedTier: Tier | null; // tier this quarter's billing already earns (for NoTier: what they'll be enrolled at)
   // Weekly pace for the active push
   weeklyTarget: number;
   weeklyGoal: { verb: 'defend' | 'reach' | 'reenter'; tier: Tier | null };
@@ -280,7 +281,7 @@ export function computeNudge(
     gaugeFrac, gaugeSecured, keepReq, toKeep, dropTo,
     advanceTier, advanceReq, advanceFrac: advanceReq ? clamp01(billed / advanceReq) : 0,
     toNext, currentRate, nextRate,
-    reentryReq, toReenter,
+    reentryReq, toReenter, securedTier: secured,
     weeklyTarget, weeklyGoal,
   };
 }

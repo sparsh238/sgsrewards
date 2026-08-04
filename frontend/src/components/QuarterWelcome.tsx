@@ -61,7 +61,8 @@ export default function QuarterWelcome({ tier, prevTier, partyName, earnRates, r
   const recoverReq = requirements[prevTier];
 
   const cta = { promoted: `Explore ${tier} rewards`, held: 'Continue', dropped: 'See how to climb', first: 'Explore rewards' }[outcome];
-  const go = () => { onDismiss(); navigate('/shop'); };
+  // "See how to climb" must open the climb page, not the shop; everything else browses rewards.
+  const go = () => { onDismiss(); navigate(outcome === 'dropped' ? '/tier' : '/shop'); };
 
   return (
     <div className="qw-overlay" role="dialog" aria-modal="true" aria-label="Quarterly tier update">
