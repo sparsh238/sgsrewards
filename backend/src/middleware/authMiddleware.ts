@@ -14,9 +14,15 @@ const authMiddleware = (...requiredRoles: UserRole[]) => async (req: Request, re
   try {
     const { payload } = await jwtVerify(token, new TextEncoder().encode(process.env.JWT_SECRET!), { algorithms: ['HS256'] });
     const decoded = payload as { _id: string; userType?: string };
-    const user = await User.findOne({ _id: decoded._id, refreshToken: token });
+    // Authenticate by the token's subject alone. We deliberately no longer require
+    // the bearer to equal the stored `refreshToken` field: that field rotates on
+    // every login, so the old check silently invalidated a user's other sessions
+    // (and any token refresh) — the source of the random logouts. The bearer is a
+    // signed, unexpired JWT, which is sufficient. A blocked user is rejected here
+    // so a block takes effect on their very next request.
+    const user = await User.findById(decoded._id);
 
-    if (!user) {
+    if (!user || user.blocked) {
       throw new Error();
     }
 

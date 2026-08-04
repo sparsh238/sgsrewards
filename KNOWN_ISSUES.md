@@ -39,8 +39,16 @@ that review were already fixed — see the "Code-review fixes" commit.)
 - **When it bites:** only if the tier settings themselves are misconfigured.
 - **Fix:** guard for a missing requirement and show a neutral state instead of a risk line.
 
-## 6. Auth token model (planned rebuild)
-- **Where:** `backend/src/middleware/authMiddleware.ts` + `backend/src/controllers/authController.ts` (login/refresh).
-- **What:** the middleware matches the incoming **access** token against the stored **refreshToken** field. It only works because login stores that token there, and a session can break after a token refresh rotates it (occasional unexpected logouts).
-- **Status:** known — a proper token redesign is planned, pending live testing.
-- **Fix:** verify the access token and look the user up by `_id` alone; keep the refresh token separate and rotate it only on `/refresh-token`.
+## 6. Auth token model — random logouts FIXED (full rebuild optional)
+- **Where:** `backend/src/middleware/authMiddleware.ts`.
+- **Was:** the middleware required the incoming bearer to equal the stored `refreshToken`
+  field, which rotates on every login — so any re-login or token refresh silently
+  invalidated other sessions (the random logouts).
+- **Fixed:** the middleware now authenticates by the token's `_id` alone (any signed,
+  unexpired JWT), and rejects blocked users. Sessions survive backend restarts and
+  concurrent logins. Non-breaking — existing stored tokens keep working.
+- **Optional future cleanup (not fragility-related):** the client still sends the
+  *refresh* token as its bearer (login stores `data.refreshToken`), and server-side
+  logout (`refreshToken = null`) no longer revokes a live token — it stays valid until
+  expiry. A full redesign would use a short access token + a real refresh flow and
+  re-add server-side revocation. Low priority now that the logouts are gone.
