@@ -25,6 +25,7 @@ import Bills from './screens/admin/Bills';
 import Items from './screens/admin/Items';
 import System from './screens/admin/System';
 import TierReview from './screens/admin/TierReview';
+import Calendar from './screens/admin/Calendar';
 
 // Client-side role guard — UX only; the backend enforces roles authoritatively.
 function RequireRole({ roles }: { roles: string[] }) {
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="orders" element={<AdminOrders />} />
           <Route path="bills" element={<Bills />} />
           <Route path="items" element={<Items />} />
+          <Route path="calendar" element={<Calendar />} />
         </Route>
       </Route>
 
@@ -118,6 +120,7 @@ export default function App() {
           <Route path="orders" element={<AdminOrders />} />
           <Route path="bills" element={<Bills />} />
           <Route path="items" element={<Items />} />
+          <Route path="calendar" element={<Calendar />} />
           <Route path="tier-review" element={<TierReview />} />
           <Route path="system" element={<System />} />
         </Route>

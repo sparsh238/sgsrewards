@@ -24,6 +24,7 @@ export default function AdminShell() {
         {link(`${base}/orders`, 'Orders')}
         {link(`${base}/bills`, 'Bills')}
         {link(`${base}/items`, 'Rewards')}
+        {link(`${base}/calendar`, 'Calendar')}
         {isSuper && link(`${base}/tier-review`, 'Tier Review')}
         {isSuper && link(`${base}/system`, 'System')}
         <div className="nav-spacer" />

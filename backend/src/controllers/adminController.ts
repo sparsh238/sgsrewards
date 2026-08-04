@@ -26,9 +26,10 @@ const getOverview = async (req: Request, res: Response) => {
       { $group: { _id: '$userId', billed: { $sum: '$billAmount' } } },
     ]);
     const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
-    const dealers = await User.find({ userType: 'customer' });
+    // Overview scheme-math covers only in-scheme (real CD) dealers.
+    const dealers = await User.find({ userType: 'customer', inScheme: { $ne: false } });
 
-    let promoting = 0, atRisk = 0, dormant = 0;
+    let promoting = 0, atRisk = 0, billing = 0;
     const byRegion: Record<string, any> = {};
     for (const u of dealers) {
       const billed = billedByUser.get(String(u._id)) ?? 0;
@@ -36,38 +37,41 @@ const getOverview = async (req: Request, res: Response) => {
       const floor = reqs[u.tier] ?? 0;
       const nextTier = idx < TIER_ORDER.length - 1 ? TIER_ORDER[idx + 1] : null;
       const nextReq = nextTier ? reqs[nextTier] ?? null : null;
-      // dormant = no billing at all this window (inactive — needs re-engagement,
-      // whatever the tier); atRisk = billing, but below the floor to hold the tier.
-      let status: 'promoting' | 'holds' | 'atRisk' | 'dormant' = 'holds';
-      if (billed <= 0) status = 'dormant';
-      else if (nextReq != null && billed >= nextReq) status = 'promoting';
+      // A tiered dealer whose billing this window is below the floor to HOLD their
+      // tier is at risk of dropping — and that includes ₹0 (no bills this window is
+      // the strongest at-risk signal, not an exemption). `noBills` is just a flag
+      // for display grouping; it does not change the verdict.
+      let status: 'promoting' | 'holds' | 'atRisk' = 'holds';
+      if (nextReq != null && billed >= nextReq) status = 'promoting';
       else if (u.tier !== 'NoTier' && billed < floor) status = 'atRisk';
       if (status === 'promoting') promoting++;
       else if (status === 'atRisk') atRisk++;
-      else if (status === 'dormant') dormant++;
+      if (billed > 0) billing++;
       const target = nextReq ?? floor ?? 1;
       const progress = Math.min(100, Math.round((billed / (target || 1)) * 100));
       const region = u.region || 'Unassigned';
       (byRegion[region] ??= { region, dealers: [], billed: 0 });
       byRegion[region].dealers.push({
-        partyName: u.partyName, tier: u.tier, billed, floor, nextTier, nextReq, status, progress,
+        partyName: u.partyName, tier: u.tier, billed, floor, nextTier, nextReq, status,
+        progress, noBills: billed <= 0,
       });
       byRegion[region].billed += billed;
     }
-    // Sort dealers so the actionable ones surface first: promoting, at-risk,
-    // holds, then dormant last (and by billing within each).
-    const rank: Record<string, number> = { promoting: 0, atRisk: 1, holds: 2, dormant: 3 };
+    // Surface the actionable ones first: promoting, then at-risk, then holds; and
+    // within each, dealers who have billed something above those who haven't.
+    const rank: Record<string, number> = { promoting: 0, atRisk: 1, holds: 2 };
     const regions = Object.values(byRegion)
       .map((r: any) => ({
         ...r,
         count: r.dealers.length,
-        activeCount: r.dealers.filter((d: any) => d.status !== 'dormant').length,
-        dormantCount: r.dealers.filter((d: any) => d.status === 'dormant').length,
+        billedCount: r.dealers.filter((d: any) => d.billed > 0).length,
+        atRiskCount: r.dealers.filter((d: any) => d.status === 'atRisk').length,
+        promotingCount: r.dealers.filter((d: any) => d.status === 'promoting').length,
         dealers: r.dealers.sort((a: any, b: any) => (rank[a.status] - rank[b.status]) || (b.billed - a.billed)),
       }))
       .sort((a: any, b: any) => b.count - a.count);
 
-    res.send({ from, to, quarterLabel: fq.label, totals: { dealers: dealers.length, promoting, atRisk, dormant }, regions });
+    res.send({ from, to, quarterLabel: fq.label, totals: { dealers: dealers.length, billing, promoting, atRisk }, regions });
   } catch (error) {
     res.status(500).send({ error: 'Failed to build overview' });
   }
@@ -79,6 +83,33 @@ const getUsers = async (req: Request, res: Response) => {
     res.send(users);
   } catch (error) {
     res.status(500).send(error);
+  }
+};
+
+// Dealer birthday + anniversary events for the admin calendar. Dates recur every
+// year, so only month/day matter — the frontend places them on any year's grid.
+const getCalendar = async (_req: Request, res: Response) => {
+  try {
+    const users = await User.find({ userType: 'customer' })
+      .select('partyName phoneNumber tier region dateOfBirth anniversaryDate') as Array<any>;
+    const events: Array<{ name: string; phone: string; tier: string; region: string; type: 'birthday' | 'anniversary'; month: number; day: number }> = [];
+    let missing = 0;
+    for (const u of users) {
+      let has = false;
+      const push = (raw: unknown, type: 'birthday' | 'anniversary') => {
+        if (!raw) return;
+        const d = new Date(raw as string);
+        if (isNaN(d.getTime())) return;
+        events.push({ name: u.partyName, phone: u.phoneNumber, tier: u.tier, region: u.region || '', type, month: d.getUTCMonth() + 1, day: d.getUTCDate() });
+        has = true;
+      };
+      push(u.dateOfBirth, 'birthday');
+      push(u.anniversaryDate, 'anniversary');
+      if (!has) missing++;
+    }
+    res.send({ events, missing, totalDealers: users.length });
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to build calendar' });
   }
 };
 
@@ -244,4 +275,4 @@ const updateOrderStatus = async (req: Request, res: Response) => {
   }
 };
 
-export { getUsers, getUserById, addCustomer, addCustomers, getOrders, getOrderById, updateOrderStatus, getOverview };
+export { getUsers, getUserById, addCustomer, addCustomers, getOrders, getOrderById, updateOrderStatus, getOverview, getCalendar };

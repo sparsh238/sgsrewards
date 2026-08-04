@@ -2,8 +2,15 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { formatDate, formatNumber } from '../../lib/format';
-import type { Tier } from '../../lib/tier';
+import { type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
+
+// "2026-07" -> "Jul 2026" for the month filter.
+const periodLabel = (p: string) => {
+  const [y, m] = p.split('-').map(Number);
+  if (!y || !m) return p;
+  return `${new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'short' })} ${y}`;
+};
 
 interface BillRow {
   _id: string;
@@ -12,9 +19,12 @@ interface BillRow {
   billAmount: number;
   pointsAwarded?: number;
   tierAtBill?: Tier;
-  userId: { _id?: string; partyName?: string; phoneNumber?: string; tier?: Tier } | null;
+  period?: string;
+  source?: string;
+  userId: { _id?: string; partyName?: string; phoneNumber?: string; tier?: Tier; region?: string } | null;
 }
-interface Dealer { _id: string; username: string; partyName: string; tier: Tier }
+interface Dealer { _id: string; username: string; partyName: string; tier: Tier; region?: string }
+interface BillsResp { items: BillRow[]; total: number; page: number; pageSize: number; periods: string[] }
 type Conversion = Partial<Record<Tier, number>>;
 
 // Mirrors the backend's pointsForBill so the admin sees the true award before saving.
@@ -26,24 +36,44 @@ function previewPoints(amount: number, tier: Tier | undefined, conv: Conversion)
   return Math.ceil(amount / rate);
 }
 
+const PAGE_SIZE = 25;
+
 export default function Bills() {
-  const [bills, setBills] = useState<BillRow[] | null>(null);
+  const [data, setData] = useState<BillsResp | null>(null);
   const [dealers, setDealers] = useState<Dealer[]>([]);
   const [conv, setConv] = useState<Conversion>({});
-  const [query, setQuery] = useState('');
   const [error, setError] = useState('');
   const [modal, setModal] = useState<null | { mode: 'add' } | { mode: 'edit'; bill: BillRow }>(null);
   const { toast, toastError } = useToast();
 
+  // Filters + pagination
+  const [page, setPage] = useState(1);
+  const [period, setPeriod] = useState('');
+  const [region, setRegion] = useState('');
+  const [source, setSource] = useState('');
+  const [search, setSearch] = useState('');
+  const [debounced, setDebounced] = useState('');
+
+  useEffect(() => { const t = setTimeout(() => setDebounced(search), 300); return () => clearTimeout(t); }, [search]);
+  useEffect(() => { setPage(1); }, [period, region, source, debounced]);
+
   const load = () => {
-    apiJson<BillRow[]>('/api/bill').then((d) => setBills([...d].reverse())).catch((e) => setError((e as Error).message));
+    const p = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
+    if (period) p.set('period', period);
+    if (region) p.set('region', region);
+    if (source) p.set('source', source);
+    if (debounced) p.set('search', debounced);
+    apiJson<BillsResp>(`/api/bill?${p.toString()}`).then(setData).catch((e) => setError((e as Error).message));
   };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [page, period, region, source, debounced]);
   useEffect(() => {
-    load();
     apiJson<Dealer[]>('/api/admin/users').then(setDealers).catch(() => {});
     apiJson<{ tierPointsConversion: Conversion }>('/api/superadmin/system/points-conversion')
       .then((d) => setConv(d.tierPointsConversion || {})).catch(() => {});
   }, []);
+
+  const regions = useMemo(() => [...new Set(dealers.map((d) => d.region).filter(Boolean) as string[])].sort(), [dealers]);
 
   const remove = async (bill: BillRow) => {
     if (!window.confirm(`Delete bill #${bill.billNumber}? The dealer's points will be adjusted.`)) return;
@@ -54,57 +84,92 @@ export default function Bills() {
     } catch (err) { toastError((err as Error).message); }
   };
 
-  const visible = useMemo(() => {
-    if (!bills) return [];
-    const q = query.trim().toLowerCase();
-    if (!q) return bills;
-    return bills.filter((b) => b.billNumber.toLowerCase().includes(q)
-      || (b.userId?.partyName ?? '').toLowerCase().includes(q)
-      || (b.userId?.phoneNumber ?? '').includes(q));
-  }, [bills, query]);
+  const items = data?.items ?? [];
+  const total = data?.total ?? 0;
+  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const periods = data?.periods ?? [];
 
   return (
     <>
       <div className="admin-head">
         <div><h1>Bills</h1><p className="page-sub">Recording a bill credits points by the dealer's tier rate.</p></div>
         <div className="admin-toolbar">
-          <input className="input" placeholder="Search bill / dealer…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input" placeholder="Search bill / dealer…" value={search} onChange={(e) => setSearch(e.target.value)} />
           <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setModal({ mode: 'add' })}>
             + Add bill
           </button>
         </div>
       </div>
 
-      {error && <div className="error-banner" role="alert">{error}</div>}
-      {bills === null && !error && <div className="skeleton" style={{ height: 200 }} />}
+      <div className="chip-row" style={{ gap: 10 }}>
+        <select className="input" style={{ width: 'auto' }} value={period} onChange={(e) => setPeriod(e.target.value)}>
+          <option value="">All months</option>
+          {periods.map((p) => <option key={p} value={p}>{periodLabel(p)}</option>)}
+        </select>
+        <select className="input" style={{ width: 'auto' }} value={region} onChange={(e) => setRegion(e.target.value)}>
+          <option value="">All areas</option>
+          {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+        <select className="input" style={{ width: 'auto' }} value={source} onChange={(e) => setSource(e.target.value)}>
+          <option value="">All sources</option>
+          <option value="manual">Manual</option>
+          <option value="busy">Busy sync</option>
+        </select>
+        {(period || region || source || debounced) && (
+          <button className="fchip" onClick={() => { setPeriod(''); setRegion(''); setSource(''); setSearch(''); }}>Clear filters</button>
+        )}
+      </div>
 
-      {bills !== null && (
-        <div className="table-wrap">
-          <table className="data">
-            <thead>
-              <tr><th>Bill #</th><th>Dealer</th><th>Tier</th><th>Amount</th><th>Points</th><th>Date</th><th></th></tr>
-            </thead>
-            <tbody>
-              {visible.map((b) => (
-                <tr key={b._id}>
-                  <td className="t-strong t-mono">{b.billNumber}</td>
-                  <td><div className="t-strong">{b.userId?.partyName ?? '—'}</div><div className="hint">{b.userId?.phoneNumber ?? ''}</div></td>
-                  <td className="hint">{b.tierAtBill || b.userId?.tier || '—'}</td>
-                  <td className="t-num">₹{formatNumber(b.billAmount)}</td>
-                  <td className="t-num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
-                  <td className="hint">{formatDate(b.billDate)}</td>
-                  <td>
-                    <div className="t-actions">
-                      <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
-                      <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {visible.length === 0 && <tr><td colSpan={7} className="hint" style={{ textAlign: 'center', padding: 30 }}>No bills yet.</td></tr>}
-            </tbody>
-          </table>
-        </div>
+      {error && <div className="error-banner" role="alert">{error}</div>}
+      {data === null && !error && <div className="skeleton" style={{ height: 200 }} />}
+
+      {data !== null && (
+        <>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr><th>Bill #</th><th>Dealer</th><th>Area</th><th>Tier</th><th>Amount</th><th>Points</th><th>Date</th><th>Source</th><th></th></tr>
+              </thead>
+              <tbody>
+                {items.map((b) => {
+                  const busy = (b.source ?? 'manual') === 'busy';
+                  return (
+                    <tr key={b._id}>
+                      <td className="t-strong t-mono">{b.billNumber}</td>
+                      <td><div className="t-strong">{b.userId?.partyName ?? '—'}</div><div className="hint">{b.userId?.phoneNumber ?? ''}</div></td>
+                      <td className="hint">{b.userId?.region || '—'}</td>
+                      <td className="hint">{b.tierAtBill || b.userId?.tier || '—'}</td>
+                      <td className="t-num">₹{formatNumber(b.billAmount)}</td>
+                      <td className="t-num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
+                      <td className="hint">{formatDate(b.billDate)}</td>
+                      <td>{busy ? <span className="src-tag busy">synced</span> : <span className="src-tag">manual</span>}</td>
+                      <td>
+                        {busy ? (
+                          <span className="hint" title="Synced from the Busy push — edited automatically">auto</span>
+                        ) : (
+                          <div className="t-actions">
+                            <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
+                            <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+                {items.length === 0 && <tr><td colSpan={9} className="hint" style={{ textAlign: 'center', padding: 30 }}>No bills match these filters.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="pager">
+            <span className="hint">{total.toLocaleString('en-IN')} bill{total === 1 ? '' : 's'}{period || region || source || debounced ? ' (filtered)' : ''}</span>
+            <div className="pager-ctl">
+              <button className="mini-btn" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>← Prev</button>
+              <span className="hint">Page {page} of {pages}</span>
+              <button className="mini-btn" disabled={page >= pages} onClick={() => setPage((p) => Math.min(pages, p + 1))}>Next →</button>
+            </div>
+          </div>
+        </>
       )}
 
       {modal && (

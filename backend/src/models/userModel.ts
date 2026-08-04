@@ -39,6 +39,9 @@ interface User extends Document {
   gstin?: string;
   region?: string;
   district?: string;
+  // true = real CD dealer in the scheme (earns points, counts in tier/overview).
+  // false = out-of-scheme (mobile-dominant): can log in and redeem, but earns nothing.
+  inScheme: boolean;
 }
 
 const userSchema = new Schema<User>({
@@ -75,6 +78,7 @@ const userSchema = new Schema<User>({
   gstin: { type: String, default: '' },
   region: { type: String, default: '' },
   district: { type: String, default: '' },
+  inScheme: { type: Boolean, default: true },
 });
 
 // Never serialize sensitive fields. Applies to res.send/res.json for the User

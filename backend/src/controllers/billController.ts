@@ -56,7 +56,10 @@ export const addBill = async (req: Request, res: Response) => {
         return res.status(400).json({ error: 'Invalid user ID' });
       }
 
-      const pointsToAdd = pointsForBill(billAmount, user.tier, systemConfig);
+      // Out-of-scheme dealers (mobile-dominant) can redeem but never earn.
+      const pointsToAdd = (user as { inScheme?: boolean }).inScheme === false
+        ? 0
+        : pointsForBill(billAmount, user.tier, systemConfig);
 
       // Persist the exact points granted (so edit/delete can reverse them precisely)
       // and the tier at billing time (for the admin audit view).
@@ -117,12 +120,55 @@ export const getBillById = async (req: Request, res: Response) => {
     }
 };
 
+// Paginated + filterable admin bill list. Filters: period (YYYY-MM), region
+// (on the dealer), source ('manual' | 'busy'), and a search across bill number /
+// dealer name / phone. Region + dealer search need the joined user, so this runs
+// as an aggregation. Legacy bills predate the `source` field, so absent === manual.
 export const getAllBills = async (req: Request, res: Response) => {
     try {
-        // tier is included so the admin edit-bill modal can show the correct
-        // tier-based points preview.
-        const bills = await Bill.find().populate('userId', 'partyName phoneNumber tier');
-        res.status(200).json(bills);
+        const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+        const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string, 10) || 25));
+        const period = String(req.query.period ?? '').trim();
+        const region = String(req.query.region ?? '').trim();
+        const source = String(req.query.source ?? '').trim();
+        const search = String(req.query.search ?? '').trim();
+
+        const pre: Record<string, unknown> = {};
+        if (/^\d{4}-\d{2}$/.test(period)) pre.period = period;
+        if (source === 'busy') pre.source = 'busy';
+        else if (source === 'manual') pre.source = { $in: ['manual', null] }; // null also matches a missing field
+
+        const post: Record<string, unknown> = {};
+        if (region) post['user.region'] = region;
+        if (search) {
+            const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+            post.$or = [{ billNumber: rx }, { 'user.partyName': rx }, { 'user.phoneNumber': rx }];
+        }
+
+        const [result] = await Bill.aggregate([
+            { $match: pre },
+            { $lookup: { from: 'users', localField: 'userId', foreignField: '_id', as: 'user' } },
+            { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+            { $match: post },
+            { $sort: { billDate: -1, _id: -1 } },
+            { $facet: {
+                items: [
+                    { $skip: (page - 1) * pageSize },
+                    { $limit: pageSize },
+                    { $project: {
+                        billNumber: 1, billDate: 1, billAmount: 1, pointsAwarded: 1, tierAtBill: 1, period: 1,
+                        source: { $ifNull: ['$source', 'manual'] },
+                        userId: { _id: '$user._id', partyName: '$user.partyName', phoneNumber: '$user.phoneNumber', tier: '$user.tier', region: '$user.region' },
+                    } },
+                ],
+                total: [{ $count: 'n' }],
+            } },
+        ]);
+        const items = result?.items ?? [];
+        const total = result?.total?.[0]?.n ?? 0;
+        const periods = (await Bill.distinct('period')).filter((p: string) => /^\d{4}-\d{2}$/.test(p)).sort().reverse();
+
+        res.status(200).json({ items, total, page, pageSize, periods });
     } catch (error) {
         res.status(500).json({ error: error });
     }

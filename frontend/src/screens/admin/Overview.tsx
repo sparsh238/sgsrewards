@@ -4,14 +4,14 @@ import { useAuth } from '../../lib/auth';
 import { formatNumber } from '../../lib/format';
 import { TIER_ACCENT, type Tier } from '../../lib/tier';
 
-type Status = 'promoting' | 'holds' | 'atRisk' | 'dormant';
+type Status = 'promoting' | 'holds' | 'atRisk';
 interface DealerRow {
   partyName: string; tier: Tier; billed: number;
   floor: number; nextTier: Tier | null; nextReq: number | null;
-  status: Status; progress: number;
+  status: Status; progress: number; noBills: boolean;
 }
-interface Region { region: string; count: number; activeCount: number; dormantCount: number; billed: number; dealers: DealerRow[] }
-interface Overview { totals: { dealers: number; promoting: number; atRisk: number; dormant: number }; regions: Region[] }
+interface Region { region: string; count: number; billedCount: number; atRiskCount: number; promotingCount: number; billed: number; dealers: DealerRow[] }
+interface Overview { totals: { dealers: number; billing: number; promoting: number; atRisk: number }; regions: Region[] }
 
 const fmtMoney = (n: number) => (n >= 1e7 ? `₹${(n / 1e7).toFixed(2)}Cr` : `₹${(n / 1e5).toFixed(1)}L`);
 
@@ -45,11 +45,10 @@ export default function OverviewScreen() {
   const isOpen = (region: string) => (q ? true : !!open[region]);
   const toggle = (region: string) => setOpen((o) => ({ ...o, [region]: !o[region] }));
 
-  const verdict = (s: Status) =>
-    s === 'promoting' ? <span className="risk up">▲ promoting</span>
-      : s === 'atRisk' ? <span className="risk down">▼ at risk</span>
-        : s === 'dormant' ? <span className="risk dorm">◦ dormant</span>
-          : <span className="risk hold">— holds</span>;
+  const verdict = (d: DealerRow) =>
+    d.status === 'promoting' ? <span className="risk up">▲ promoting</span>
+      : d.status === 'atRisk' ? <span className="risk down">{d.noBills ? '▼ at risk · no bills' : '▼ at risk'}</span>
+        : <span className="risk hold">— holds</span>;
 
   const fillColor = (s: Status) =>
     s === 'promoting' ? 'linear-gradient(90deg,#c98a4a,#F0D083)'
@@ -57,7 +56,7 @@ export default function OverviewScreen() {
         : 'linear-gradient(90deg,#3a4152,#8fa0b8)';
 
   const DealerLine = ({ d }: { d: DealerRow }) => (
-    <div className={`ov-drow${d.status === 'dormant' ? ' ov-dorm' : ''}`}>
+    <div className={`ov-drow${d.noBills ? ' ov-dorm' : ''}`}>
       <div className="ov-dn"><div className="ov-dnn">{d.partyName}</div><div className="ov-dns" style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</div></div>
       <div className="ov-prog">
         <div className="ov-track"><div className="ov-fill" style={{ width: `${d.progress}%`, background: fillColor(d.status) }} /></div>
@@ -66,7 +65,7 @@ export default function OverviewScreen() {
           <span>{d.nextTier ? `${d.progress}%` : ''}</span>
         </div>
       </div>
-      {verdict(d.status)}
+      {verdict(d)}
     </div>
   );
 
@@ -85,20 +84,24 @@ export default function OverviewScreen() {
       {data && (
         <>
           <div className="kpi-row">
-            <div className="kpi"><div className="k-lab">Dealers</div><div className="k-val num">{formatNumber(data.totals.dealers)}</div></div>
+            <div className="kpi"><div className="k-lab">In-scheme dealers</div><div className="k-val num">{formatNumber(data.totals.dealers)}</div></div>
+            <div className="kpi"><div className="k-lab">Billed this window</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{formatNumber(data.totals.billing)}</div></div>
             <div className="kpi"><div className="k-lab">On track to promote</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{data.totals.promoting}</div></div>
-            <div className="kpi"><div className="k-lab">At risk of drop</div><div className="k-val num" style={{ color: '#E07A7A' }}>{data.totals.atRisk}</div></div>
-            <div className="kpi"><div className="k-lab">Dormant (no billing)</div><div className="k-val num" style={{ color: '#8a94a6' }}>{data.totals.dormant}</div></div>
+            <div className="kpi"><div className="k-lab">At risk of drop</div><div className="k-val num" style={{ color: '#E07A7A' }}>{formatNumber(data.totals.atRisk)}</div></div>
           </div>
+
+          {data.totals.billing === 0 && (
+            <div className="ov-note" role="note">
+              No bills recorded this quarter yet — the billing feed isn’t connected, so every tiered dealer reads as <b>at risk</b> (₹0 billed). Once bills flow in, promote / hold / at-risk update live.
+            </div>
+          )}
 
           {regions.length === 0 && <div className="empty"><b>No dealers match</b><span>Try a different name.</span></div>}
 
           {regions.map((r) => {
-            const promoting = r.dealers.filter((d) => d.status === 'promoting').length;
-            const atRisk = r.dealers.filter((d) => d.status === 'atRisk').length;
-            const active = r.dealers.filter((d) => d.status !== 'dormant');
-            const dorm = r.dealers.filter((d) => d.status === 'dormant');
-            const dormOpen = q ? true : !!showDorm[r.region];
+            const billedRows = r.dealers.filter((d) => d.billed > 0);
+            const noBills = r.dealers.filter((d) => d.billed <= 0);
+            const moreOpen = q ? true : !!showDorm[r.region];
             return (
               <div className="ov-region" key={r.region}>
                 <button className={`ov-rh${isOpen(r.region) ? ' open' : ''}`} onClick={() => toggle(r.region)}>
@@ -106,26 +109,25 @@ export default function OverviewScreen() {
                   <span className="ov-rn">{r.region}{NEW_REGIONS.test(r.region) && <span className="ov-newtag">NEW territory</span>}</span>
                   <span className="ov-rmeta">
                     <span>{r.count} dealers</span>
-                    {promoting > 0 && <span className="pill-up">▲ {promoting}</span>}
-                    {atRisk > 0 && <span className="pill-down">▼ {atRisk}</span>}
-                    {dorm.length > 0 && <span className="pill-dorm">◦ {dorm.length}</span>}
+                    {r.promotingCount > 0 && <span className="pill-up">▲ {r.promotingCount}</span>}
+                    {r.atRiskCount > 0 && <span className="pill-down">▼ {r.atRiskCount}</span>}
                     <span>{fmtMoney(r.billed)}</span>
                   </span>
                 </button>
                 {isOpen(r.region) && (
                   <div className="ov-rbody">
-                    {active.length === 0 && dorm.length > 0 && !dormOpen && (
-                      <div className="ov-allquiet">No active dealers this window — all {dorm.length} dormant.</div>
+                    {billedRows.length === 0 && noBills.length > 0 && !moreOpen && (
+                      <div className="ov-allquiet">No dealer has billed this window — all {noBills.length} at risk of drop (no bills).</div>
                     )}
-                    {active.map((d) => <DealerLine d={d} key={d.partyName} />)}
-                    {dorm.length > 0 && (
+                    {billedRows.map((d) => <DealerLine d={d} key={d.partyName} />)}
+                    {noBills.length > 0 && (
                       <>
                         {!q && (
                           <button className="ov-dormtoggle" onClick={() => setShowDorm((s) => ({ ...s, [r.region]: !s[r.region] }))}>
-                            {dormOpen ? '▾ Hide' : '▸ Show'} {dorm.length} dormant (no billing this window)
+                            {moreOpen ? '▾ Hide' : '▸ Show'} {noBills.length} with no bills this window · at risk
                           </button>
                         )}
-                        {dormOpen && dorm.map((d) => <DealerLine d={d} key={d.partyName} />)}
+                        {moreOpen && noBills.map((d) => <DealerLine d={d} key={d.partyName} />)}
                       </>
                     )}
                   </div>

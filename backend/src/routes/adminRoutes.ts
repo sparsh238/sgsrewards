@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
-import { getUsers, getUserById, getOrders, getOrderById, updateOrderStatus, addCustomer, addCustomers, getOverview } from '../controllers/adminController';
+import { getUsers, getUserById, getOrders, getOrderById, updateOrderStatus, addCustomer, addCustomers, getOverview, getCalendar } from '../controllers/adminController';
 
 const router = Router();
 
@@ -10,6 +10,7 @@ router.post('/add-customer', authMiddleware('admin', 'superadmin'), addCustomer)
 router.post('/add-customers', authMiddleware('admin', 'superadmin'), addCustomers);
 router.get('/orders', authMiddleware('admin', 'superadmin'), getOrders);
 router.get('/overview', authMiddleware('admin', 'superadmin'), getOverview);
+router.get('/calendar', authMiddleware('admin', 'superadmin'), getCalendar);
 router.get('/:orderId', authMiddleware('customer', 'admin', 'superadmin'), getOrderById);
 router.patch('/:orderId/status', authMiddleware('admin', 'superadmin'), updateOrderStatus);
 

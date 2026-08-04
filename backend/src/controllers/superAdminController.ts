@@ -224,7 +224,7 @@ const toDateOrNull = (v: unknown): Date | null => {
 // phone) is. Phone changes are checked for uniqueness.
 const updateDealer = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const { partyName, firstName, lastName, dateOfBirth, anniversaryDate, phoneNumber } = req.body;
+  const { partyName, firstName, lastName, dateOfBirth, anniversaryDate, phoneNumber, inScheme } = req.body;
   try {
     const user = await User.findById(id);
     if (!user) return res.status(404).send({ error: 'Dealer not found' });
@@ -246,6 +246,7 @@ const updateDealer = async (req: Request, res: Response) => {
     if (lastName !== undefined) user.lastName = String(lastName).trim();
     if (dateOfBirth !== undefined) user.dateOfBirth = toDateOrNull(dateOfBirth);
     if (anniversaryDate !== undefined) user.anniversaryDate = toDateOrNull(anniversaryDate);
+    if (inScheme !== undefined) user.inScheme = Boolean(inScheme);
     await user.save();
     res.send(user);
   } catch (error) {
@@ -281,7 +282,8 @@ const getTierReview = async (req: Request, res: Response) => {
     ]);
     const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
 
-    const users = await User.find({ userType: 'customer' });
+    // Only in-scheme (real CD) dealers are reviewed; out-of-scheme never earn/change tier.
+    const users = await User.find({ userType: 'customer', inScheme: { $ne: false } });
     const rank = (t: string) => TIER_ORDER.indexOf(t);
     const rows = users.map((u) => {
       const billed = billedByUser.get(String(u._id)) ?? 0;

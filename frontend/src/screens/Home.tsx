@@ -15,6 +15,7 @@ interface Profile {
   partyName: string;
   availablePoints: number;
   tier: Tier;
+  inScheme?: boolean;
 }
 
 export default function Home() {
@@ -66,6 +67,16 @@ export default function Home() {
         <div className="skeleton" style={{ height: 120 }} />
       )}
 
+      {profile?.inScheme === false && (
+        <div className="redeem-only" role="note">
+          <span className="ro-icon">🎁</span>
+          <div>
+            <b>Redeem-only account</b>
+            <p>You can redeem your points anytime — but this account doesn’t earn new points.</p>
+          </div>
+        </div>
+      )}
+
       {profile ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div className="points-line">
@@ -83,13 +94,13 @@ export default function Home() {
         <div className="skeleton" style={{ height: 40, width: '60%' }} />
       )}
 
-      {/* Primary nudge: gauge + stakes + weekly target. Tappable → Tier page. */}
-      {nudge && profile
+      {/* Earn UI (gauge + billing stats) only for in-scheme dealers; out-of-scheme redeem only. */}
+      {profile?.inScheme !== false && (nudge && profile
         ? <TierNudge nudge={nudge} onOpen={() => navigate('/tier')} />
-        : <div className="skeleton" style={{ height: 240 }} />}
+        : <div className="skeleton" style={{ height: 240 }} />)}
 
       {/* Billing motivation — this month and this quarter */}
-      {month && quarter && (
+      {profile?.inScheme !== false && month && quarter && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div>
             <div className="section-label" style={{ marginBottom: 8 }}>This month · {monthLabel()}</div>

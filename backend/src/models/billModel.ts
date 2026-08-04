@@ -8,6 +8,7 @@ export interface Bill extends Document {
     pointsAwarded: number;
     tierAtBill: string;
     period: string;
+    source: string;
 }
 
 const BillSchema: Schema = new Schema({
@@ -26,6 +27,10 @@ const BillSchema: Schema = new Schema({
     // entry date) so a back-dated bill lands in the month it belongs to. Derived
     // from billDate on add/edit; the daily push must set billDate to the invoice date.
     period: { type: String, default: '', index: true },
+    // Where the bill came from: 'manual' (admin-entered) or 'busy' (daily Busy
+    // push sync). The sync only ever touches its own 'busy' bills — manual bills
+    // are never clobbered. One 'busy' bill per (userId, period).
+    source: { type: String, default: 'manual', index: true },
 });
 
 export default mongoose.model<Bill>('Bill', BillSchema);
