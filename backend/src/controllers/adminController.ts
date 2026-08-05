@@ -20,9 +20,10 @@ const getOverview = async (req: Request, res: Response) => {
     const fq = fiscalQuarter(new Date());
     const from = fq.from, to = fq.to;
 
-    // Match on the TRUE billing month (period), not the entry date.
+    // Match on the TRUE billing month (period), not the entry date. Voided
+    // (deleted) and excluded (disregarded) bills never count toward turnover.
     const agg = await Bill.aggregate([
-      { $match: { period: { $gte: fq.periodFrom, $lt: fq.periodTo } } },
+      { $match: { period: { $gte: fq.periodFrom, $lt: fq.periodTo }, voided: { $ne: true }, excluded: { $ne: true } } },
       { $group: { _id: '$userId', billed: { $sum: '$billAmount' } } },
     ]);
     const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
@@ -74,6 +75,69 @@ const getOverview = async (req: Request, res: Response) => {
     res.send({ from, to, quarterLabel: fq.label, totals: { dealers: dealers.length, billing, promoting, atRisk }, regions });
   } catch (error) {
     res.status(500).send({ error: 'Failed to build overview' });
+  }
+};
+
+// Deep-dive for one dealer, for the expandable card on the Dealers tab. Bundles
+// identity, this-quarter target math (billed vs hold/next thresholds + verdict),
+// lifetime billing/points, and the few most recent bills — all in one round-trip.
+// Voided (admin-deleted) bills are excluded everywhere.
+const getDealerSummary = async (req: Request, res: Response) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user || user.userType !== 'customer') {
+      return res.status(404).send({ error: 'Dealer not found' });
+    }
+    const system = await System.findOne();
+    const reqs = (system?.tierBillingRequirements ?? {}) as Record<string, number>;
+    const conv = (system?.tierPointsConversion ?? {}) as Record<string, number>;
+    const fq = fiscalQuarter(new Date());
+
+    const notVoided = { userId: user._id, voided: { $ne: true } };
+    // Turnover math disregards excluded bills; the recent list still shows them (tagged).
+    const counts = { ...notVoided, excluded: { $ne: true } };
+    const [quarterAgg, lifeAgg, recent] = await Promise.all([
+      Bill.aggregate([
+        { $match: { ...counts, period: { $gte: fq.periodFrom, $lt: fq.periodTo } } },
+        { $group: { _id: null, billed: { $sum: '$billAmount' }, earned: { $sum: '$pointsAwarded' }, count: { $sum: 1 } } },
+      ]),
+      Bill.aggregate([
+        { $match: counts },
+        { $group: { _id: null, billed: { $sum: '$billAmount' }, earned: { $sum: '$pointsAwarded' }, count: { $sum: 1 } } },
+      ]),
+      Bill.find(notVoided).sort({ billDate: -1, _id: -1 }).limit(5)
+        .select('billNumber billDate billAmount pointsAwarded tierAtBill source locked excluded lineItems'),
+    ]);
+
+    const billed = quarterAgg[0]?.billed ?? 0;
+    const idx = TIER_ORDER.indexOf(user.tier);
+    const floor = reqs[user.tier] ?? 0;
+    const nextTier = idx >= 0 && idx < TIER_ORDER.length - 1 ? TIER_ORDER[idx + 1] : null;
+    const nextReq = nextTier ? reqs[nextTier] ?? null : null;
+    // Same verdict rule as the overview: promoting (cleared the next tier),
+    // atRisk (tiered but below the floor to hold — ₹0 included), else holds.
+    let status: 'promoting' | 'holds' | 'atRisk' = 'holds';
+    if (nextReq != null && billed >= nextReq) status = 'promoting';
+    else if (user.tier !== 'NoTier' && billed < floor) status = 'atRisk';
+
+    res.send({
+      identity: {
+        partyName: user.partyName,
+        firstName: user.firstName ?? '', lastName: user.lastName ?? '',
+        phoneNumber: user.phoneNumber, gstin: user.gstin ?? '', region: user.region ?? '',
+        dateOfBirth: user.dateOfBirth ?? null, anniversaryDate: user.anniversaryDate ?? null,
+        inScheme: user.inScheme !== false, profileCompleted: user.profileCompleted === true,
+        tier: user.tier, availablePoints: user.availablePoints ?? 0, totalPoints: user.totalPoints ?? 0,
+      },
+      quarter: {
+        label: fq.label, billed, earned: quarterAgg[0]?.earned ?? 0, count: quarterAgg[0]?.count ?? 0,
+        floor, nextTier, nextReq, status, rate: conv[user.tier] ?? null,
+      },
+      lifetime: { billed: lifeAgg[0]?.billed ?? 0, earned: lifeAgg[0]?.earned ?? 0, count: lifeAgg[0]?.count ?? 0 },
+      recent,
+    });
+  } catch (error) {
+    res.status(500).send({ error: 'Failed to build dealer summary' });
   }
 };
 
@@ -279,4 +343,4 @@ const updateOrderStatus = async (req: Request, res: Response) => {
   }
 };
 
-export { getUsers, getUserById, addCustomer, addCustomers, getOrders, getOrderById, updateOrderStatus, getOverview, getCalendar };
+export { getUsers, getUserById, getDealerSummary, addCustomer, addCustomers, getOrders, getOrderById, updateOrderStatus, getOverview, getCalendar };

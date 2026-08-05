@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
 import { formatNumber } from '../../lib/format';
 import { TIER_ORDER, type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
+import DealerCard from './DealerCard';
 
 interface UserRow {
   _id: string;
@@ -40,6 +41,7 @@ export default function Users() {
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const [scheme, setScheme] = useState<'all' | 'active' | 'redeem'>('all');
   const [region, setRegion] = useState<string>('All');
+  const [expanded, setExpanded] = useState<string | null>(null);
   const { toast, toastError } = useToast();
 
   const listPath = isSuper ? '/api/superadmin/allusers' : '/api/admin/users';
@@ -160,10 +162,23 @@ export default function Users() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((u) => (
-                <tr key={u._id}>
+              {visible.map((u) => {
+                const isDealer = tab === 'dealers';
+                const open = expanded === u._id;
+                return (
+                <Fragment key={u._id}>
+                <tr className={isDealer ? `row-click${open ? ' open' : ''}` : ''}>
                   <td>
-                    <div className="t-strong">{u.partyName}{tab === 'dealers' && u.inScheme === false && <span className="ro-tag">redeem-only</span>}</div>
+                    <div className="t-strong">
+                      {isDealer && (
+                        <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open}
+                          onClick={() => setExpanded(open ? null : u._id)}>▸</button>
+                      )}
+                      {isDealer
+                        ? <button className="linklike" onClick={() => setExpanded(open ? null : u._id)}>{u.partyName}</button>
+                        : u.partyName}
+                      {isDealer && u.inScheme === false && <span className="ro-tag">redeem-only</span>}
+                    </div>
                     <div className="hint">
                       {tab === 'dealers'
                         ? <>{u.gstin ? <span className="t-mono">{u.gstin}</span> : <span className="pending">no GSTIN</span>}{!u.profileCompleted && <span className="pending"> · profile pending</span>}</>
@@ -190,7 +205,14 @@ export default function Users() {
                     </div></td>
                   )}
                 </tr>
-              ))}
+                {isDealer && open && (
+                  <tr className="row-detail">
+                    <td colSpan={8}><DealerCard userId={u._id} /></td>
+                  </tr>
+                )}
+                </Fragment>
+                );
+              })}
               {visible.length === 0 && <tr><td colSpan={8} className="hint" style={{ textAlign: 'center', padding: 30 }}>No {tab} found.</td></tr>}
             </tbody>
           </table>

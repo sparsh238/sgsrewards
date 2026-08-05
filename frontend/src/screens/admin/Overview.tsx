@@ -25,6 +25,9 @@ export default function OverviewScreen() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [showDorm, setShowDorm] = useState<Record<string, boolean>>({});
   const [query, setQuery] = useState('');
+  // Verdict filter. 'holds' is the MAINTAIN bucket: cleared the current-tier floor
+  // but not yet the next-tier line. null = show everyone.
+  const [statusF, setStatusF] = useState<Status | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -32,15 +35,26 @@ export default function OverviewScreen() {
     return () => { alive = false; };
   }, []);
 
+  // Global verdict tallies across every region, for the filter chip badges.
+  const tally = useMemo(() => {
+    const all = (data?.regions ?? []).flatMap((r) => r.dealers);
+    return {
+      promoting: all.filter((d) => d.status === 'promoting').length,
+      holds: all.filter((d) => d.status === 'holds').length,
+      atRisk: all.filter((d) => d.status === 'atRisk').length,
+    };
+  }, [data]);
+
   const q = query.trim().toLowerCase();
   const regions = useMemo(() => {
     if (!data) return [];
-    if (!q) return data.regions;
+    if (!q && !statusF) return data.regions;
     // Recompute the header counts from the filtered set so the region row's
-    // "N dealers ▲x ▼y ₹z" matches the rows actually shown while searching.
+    // "N dealers ▲x ▼y ₹z" matches the rows actually shown while searching/filtering.
     return data.regions
       .map((r) => {
-        const dealers = r.dealers.filter((d) => d.partyName.toLowerCase().includes(q));
+        const dealers = r.dealers.filter((d) =>
+          (!q || d.partyName.toLowerCase().includes(q)) && (!statusF || d.status === statusF));
         return {
           ...r,
           dealers,
@@ -51,10 +65,10 @@ export default function OverviewScreen() {
         };
       })
       .filter((r) => r.dealers.length > 0);
-  }, [data, q]);
+  }, [data, q, statusF]);
 
-  // While searching, auto-expand every region that still has matches.
-  const isOpen = (region: string) => (q ? true : !!open[region]);
+  // While searching or filtering, auto-expand every region that still has matches.
+  const isOpen = (region: string) => (q || statusF ? true : !!open[region]);
   const toggle = (region: string) => setOpen((o) => ({ ...o, [region]: !o[region] }));
 
   const verdict = (d: DealerRow) =>
@@ -67,11 +81,23 @@ export default function OverviewScreen() {
       : s === 'atRisk' ? 'linear-gradient(90deg,#5a2a2a,#E07A7A)'
         : 'linear-gradient(90deg,#3a4152,#8fa0b8)';
 
-  const DealerLine = ({ d }: { d: DealerRow }) => (
+  const DealerLine = ({ d }: { d: DealerRow }) => {
+    // Partition = where the current-tier HOLD line sits on a bar that fills toward
+    // the next tier. Only meaningful when there's a next tier and the floor sits
+    // below it. Green tick = cleared (safe to hold); grey = still short (drop risk).
+    const floorPct = d.nextReq && d.floor > 0 && d.floor < d.nextReq ? (d.floor / d.nextReq) * 100 : null;
+    const heldFloor = d.tier !== 'NoTier' && d.billed >= d.floor;
+    return (
     <div className={`ov-drow${d.noBills ? ' ov-dorm' : ''}`}>
       <div className="ov-dn"><div className="ov-dnn">{d.partyName}</div><div className="ov-dns" style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</div></div>
       <div className="ov-prog">
-        <div className="ov-track"><div className="ov-fill" style={{ width: `${d.progress}%`, background: fillColor(d.status) }} /></div>
+        <div className="ov-track">
+          <div className="ov-fill" style={{ width: `${d.progress}%`, background: fillColor(d.status) }} />
+          {floorPct != null && (
+            <div className={`ov-floor${heldFloor ? ' met' : ''}`} style={{ left: `${floorPct}%` }}
+              title={`Keep ${d.tier}: ${fmtMoney(d.floor)}${heldFloor ? ' · cleared' : ' · not yet'}`} />
+          )}
+        </div>
         <div className="ov-pl">
           <span>{fmtMoney(d.billed)}{d.nextTier ? ` / ${fmtMoney(d.nextReq ?? 0)} for ${d.nextTier}` : ' · top tier'}</span>
           <span>{d.nextTier ? `${d.progress}%` : ''}</span>
@@ -79,7 +105,8 @@ export default function OverviewScreen() {
       </div>
       {verdict(d)}
     </div>
-  );
+    );
+  };
 
   return (
     <>
@@ -98,8 +125,19 @@ export default function OverviewScreen() {
           <div className="kpi-row">
             <div className="kpi"><div className="k-lab">In-scheme dealers</div><div className="k-val num">{formatNumber(data.totals.dealers)}</div></div>
             <div className="kpi"><div className="k-lab">Billed this window</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{formatNumber(data.totals.billing)}</div></div>
-            <div className="kpi"><div className="k-lab">On track to promote</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{formatNumber(data.totals.promoting)}</div></div>
-            <div className="kpi"><div className="k-lab">At risk of drop</div><div className="k-val num" style={{ color: '#E07A7A' }}>{formatNumber(data.totals.atRisk)}</div></div>
+            <button className={`kpi kpi-btn${statusF === 'promoting' ? ' on' : ''}`} onClick={() => setStatusF((s) => s === 'promoting' ? null : 'promoting')}>
+              <div className="k-lab">On track to promote</div><div className="k-val num" style={{ color: '#5BD6A0' }}>{formatNumber(data.totals.promoting)}</div>
+            </button>
+            <button className={`kpi kpi-btn${statusF === 'atRisk' ? ' on' : ''}`} onClick={() => setStatusF((s) => s === 'atRisk' ? null : 'atRisk')}>
+              <div className="k-lab">At risk of drop</div><div className="k-val num" style={{ color: '#E07A7A' }}>{formatNumber(data.totals.atRisk)}</div>
+            </button>
+          </div>
+
+          <div className="chip-row" style={{ gap: 10 }}>
+            <button className={`fchip${statusF === null ? ' on' : ''}`} onClick={() => setStatusF(null)}>All <b className="fc-n">{data.totals.dealers}</b></button>
+            <button className={`fchip${statusF === 'promoting' ? ' on' : ''}`} onClick={() => setStatusF('promoting')}>▲ Promote <b className="fc-n">{tally.promoting}</b></button>
+            <button className={`fchip${statusF === 'holds' ? ' on' : ''}`} onClick={() => setStatusF('holds')}>— Maintain <b className="fc-n">{tally.holds}</b></button>
+            <button className={`fchip${statusF === 'atRisk' ? ' on' : ''}`} onClick={() => setStatusF('atRisk')}>▼ At risk <b className="fc-n">{tally.atRisk}</b></button>
           </div>
 
           {data.totals.billing === 0 && (
@@ -116,7 +154,7 @@ export default function OverviewScreen() {
             // Of the no-bills dealers, only the tiered ones are actually at risk of
             // dropping — a NoTier in-scheme dealer has nothing to drop from.
             const noBillsAtRisk = noBills.filter((d) => d.status === 'atRisk').length;
-            const moreOpen = q ? true : !!showDorm[r.region];
+            const moreOpen = q || statusF ? true : !!showDorm[r.region];
             return (
               <div className="ov-region" key={r.region}>
                 <button className={`ov-rh${isOpen(r.region) ? ' open' : ''}`} onClick={() => toggle(r.region)}>

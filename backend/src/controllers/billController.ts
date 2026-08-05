@@ -78,7 +78,8 @@ export const addBill = async (req: Request, res: Response) => {
 
 export const getUserBills = async (req: Request, res: Response) => {
     try {
-        const filter: Record<string, unknown> = { userId: req.user._id };
+        // Dealers never see voided (deleted) or excluded (disregarded) bills.
+        const filter: Record<string, unknown> = { userId: req.user._id, voided: { $ne: true }, excluded: { $ne: true } };
         // Relaunch: the DEALER only sees bills from the relaunch month onward
         // (July 2026). Older legacy/seed bills still count toward their points
         // balance (merge), but are hidden from the dealer's bill list. Admins use
@@ -138,7 +139,7 @@ export const getAllBills = async (req: Request, res: Response) => {
         const source = String(req.query.source ?? '').trim();
         const search = String(req.query.search ?? '').trim();
 
-        const pre: Record<string, unknown> = {};
+        const pre: Record<string, unknown> = { voided: { $ne: true } };
         if (/^\d{4}-\d{2}$/.test(period)) pre.period = period;
         if (source === 'busy') pre.source = 'busy';
         else if (source === 'manual') pre.source = { $in: ['manual', null] }; // null also matches a missing field
@@ -161,8 +162,10 @@ export const getAllBills = async (req: Request, res: Response) => {
                     { $skip: (page - 1) * pageSize },
                     { $limit: pageSize },
                     { $project: {
-                        billNumber: 1, billDate: 1, billAmount: 1, pointsAwarded: 1, tierAtBill: 1, period: 1,
+                        billNumber: 1, billDate: 1, billAmount: 1, pointsAwarded: 1, tierAtBill: 1, period: 1, lineItems: 1,
                         source: { $ifNull: ['$source', 'manual'] },
+                        locked: { $ifNull: ['$locked', false] },
+                        excluded: { $ifNull: ['$excluded', false] },
                         userId: { _id: '$user._id', partyName: '$user.partyName', phoneNumber: '$user.phoneNumber', tier: '$user.tier', region: '$user.region' },
                     } },
                 ],
@@ -205,7 +208,9 @@ export const editBill = async (req: Request, res: Response) => {
 
         // Out-of-scheme dealers never earn — the same guard addBill applies, so an
         // edit can't quietly start crediting a redeem-only dealer.
-        const earns = (user as { inScheme?: boolean }).inScheme !== false;
+        // A disregarded (excluded) bill earns nothing, and neither does a
+        // redeem-only dealer — same guard addBill applies.
+        const earns = (user as { inScheme?: boolean }).inScheme !== false && bill.excluded !== true;
         // Reverse exactly what was granted (from the stored value; recompute only
         // for legacy bills that predate pointsAwarded), then grant the new amount.
         const oldPoints = typeof bill.pointsAwarded === 'number'
@@ -223,6 +228,9 @@ export const editBill = async (req: Request, res: Response) => {
         bill.billAmount = billAmount;
         bill.pointsAwarded = newPoints;
         bill.period = toPeriod(billDate);
+        // Editing a synced bill hands manual control to the admin: the Busy sync
+        // must stop reconciling it, or it would revert this edit on the next run.
+        if (bill.source === 'busy') bill.locked = true;
         await bill.save();
 
         res.status(200).json(bill);
@@ -262,10 +270,76 @@ export const deleteBill = async (req: Request, res: Response) => {
             await adjustUserPoints(user._id, -pointsToSubtract, -pointsToSubtract);
         }
 
-        await Bill.deleteOne({ _id: id });
+        // A manual bill can be hard-deleted — nothing will recreate it. A synced
+        // ('busy') bill must be SOFT-deleted: the underlying Busy voucher still
+        // exists, so a hard delete would be undone (re-inserted) on the next sync.
+        // Void it instead — points already reversed above, row hidden everywhere,
+        // and `locked` stops the sync from ever touching it again.
+        if (bill.source === 'busy') {
+            bill.voided = true;
+            bill.locked = true;
+            bill.pointsAwarded = 0;
+            await bill.save();
+        } else {
+            await Bill.deleteOne({ _id: id });
+        }
 
         res.status(200).json({ message: 'Bill deleted successfully' });
     } catch (error) {
         res.status(500).json({ error: 'An error occurred while deleting the bill' });
+    }
+};
+
+// Toggle whether a bill is DISREGARDED. Excluding reverses its points and keeps
+// the row (0 points, out of tier turnover via the `excluded` flag the aggregations
+// filter on). Re-including re-credits points at the dealer's current tier. A synced
+// bill is locked on exclude so the Busy sync won't re-credit it.
+export const setBillExcluded = async (req: Request, res: Response) => {
+    const { id } = req.params;
+    const excluded = req.body?.excluded === true;
+
+    try {
+        const bill = await Bill.findById(id);
+        if (!bill) {
+            return res.status(404).json({ error: 'Bill not found' });
+        }
+        if (bill.voided) {
+            return res.status(400).json({ error: 'Bill is deleted' });
+        }
+        if (bill.excluded === excluded) {
+            return res.status(200).json(bill); // already in the requested state — no-op
+        }
+
+        const systemConfig = await System.findOne();
+        if (!systemConfig) {
+            return res.status(500).json({ error: 'System configuration not found' });
+        }
+        const user = await User.findById(bill.userId);
+        if (!user) {
+            return res.status(400).json({ error: 'Invalid user ID' });
+        }
+        const earns = (user as { inScheme?: boolean }).inScheme !== false;
+
+        if (excluded) {
+            // Disregard: pull back exactly what this bill granted.
+            const back = typeof bill.pointsAwarded === 'number'
+                ? bill.pointsAwarded
+                : (earns ? pointsForBill(bill.billAmount, user.tier, systemConfig) : 0);
+            if (back > 0) await adjustUserPoints(user._id, -back, -back);
+            bill.excluded = true;
+            bill.pointsAwarded = 0;
+            if (bill.source === 'busy') bill.locked = true;
+        } else {
+            // Re-include: re-credit at the dealer's current tier (0 for redeem-only).
+            const pts = earns ? pointsForBill(bill.billAmount, user.tier, systemConfig) : 0;
+            if (pts > 0) await adjustUserPoints(user._id, pts, pts);
+            bill.excluded = false;
+            bill.pointsAwarded = pts;
+            bill.tierAtBill = user.tier;
+        }
+        await bill.save();
+        res.status(200).json(bill);
+    } catch (error) {
+        res.status(500).json({ error: 'An error occurred while updating the bill' });
     }
 };

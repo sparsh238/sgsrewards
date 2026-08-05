@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
-import { getUsers, getUserById, getOrders, getOrderById, updateOrderStatus, addCustomer, addCustomers, getOverview, getCalendar } from '../controllers/adminController';
+import { getUsers, getUserById, getDealerSummary, getOrders, getOrderById, updateOrderStatus, addCustomer, addCustomers, getOverview, getCalendar } from '../controllers/adminController';
 
 const router = Router();
 
 router.get('/users', authMiddleware('admin', 'superadmin'), getUsers);
+router.get('/users/:id/summary', authMiddleware('admin', 'superadmin'), getDealerSummary);
 router.get('/users/:id', authMiddleware('admin', 'superadmin'), getUserById);
 router.post('/add-customer', authMiddleware('admin', 'superadmin'), addCustomer);
 router.post('/add-customers', authMiddleware('admin', 'superadmin'), addCustomers);

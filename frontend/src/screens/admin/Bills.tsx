@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useToast } from '../../lib/toast';
-import { formatDate, formatNumber } from '../../lib/format';
+import { formatDate, formatNumber, formatRupees } from '../../lib/format';
 import { type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
+
+interface LineItem { item: string; group: string; brand: string; category: string; qty: number; value: number }
 
 // "2026-07" -> "Jul 2026" for the month filter.
 const periodLabel = (p: string) => {
@@ -21,6 +23,9 @@ interface BillRow {
   tierAtBill?: Tier;
   period?: string;
   source?: string;
+  locked?: boolean;
+  excluded?: boolean;
+  lineItems?: LineItem[];
   userId: { _id?: string; partyName?: string; phoneNumber?: string; tier?: Tier; region?: string } | null;
 }
 interface Dealer { _id: string; username: string; partyName: string; tier: Tier; region?: string }
@@ -53,6 +58,7 @@ export default function Bills() {
   const [source, setSource] = useState('');
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   // Reset to page 1 in the SAME update as any filter change (below and in the
   // select handlers) — a separate reset-effect would let load() fire once with a
@@ -78,10 +84,27 @@ export default function Bills() {
   const regions = useMemo(() => [...new Set(dealers.map((d) => d.region).filter(Boolean) as string[])].sort(), [dealers]);
 
   const remove = async (bill: BillRow) => {
-    if (!window.confirm(`Delete bill #${bill.billNumber}? The dealer's points will be adjusted.`)) return;
+    const synced = (bill.source ?? 'manual') === 'busy';
+    const msg = synced
+      ? `Delete synced bill #${bill.billNumber}? Its points will be removed from ${bill.userId?.partyName ?? 'the dealer'}, and the daily Busy sync will not bring it back.`
+      : `Delete bill #${bill.billNumber}? The dealer's points will be adjusted.`;
+    if (!window.confirm(msg)) return;
     try {
       await apiJson(`/api/bill/${bill._id}`, { method: 'DELETE' });
       toast('Bill deleted');
+      load();
+    } catch (err) { toastError((err as Error).message); }
+  };
+
+  const toggleExclude = async (bill: BillRow) => {
+    const next = !bill.excluded;
+    const msg = next
+      ? `Disregard bill #${bill.billNumber}? It will award no points and drop out of ${bill.userId?.partyName ?? 'the dealer'}'s tier turnover. You can re-include it later.`
+      : `Re-include bill #${bill.billNumber}? Points will be credited again at the dealer's current tier.`;
+    if (!window.confirm(msg)) return;
+    try {
+      await apiJson(`/api/bill/${bill._id}/exclude`, { method: 'PATCH', json: { excluded: next } });
+      toast(next ? 'Bill disregarded' : 'Bill re-included');
       load();
     } catch (err) { toastError((err as Error).message); }
   };
@@ -135,27 +158,62 @@ export default function Bills() {
               <tbody>
                 {items.map((b) => {
                   const busy = (b.source ?? 'manual') === 'busy';
+                  const hasItems = (b.lineItems?.length ?? 0) > 0;
+                  const open = expanded === b._id;
                   return (
-                    <tr key={b._id}>
-                      <td className="t-strong t-mono">{b.billNumber}</td>
+                    <Fragment key={b._id}>
+                    <tr className={b.excluded ? 'bill-excluded' : ''}>
+                      <td className="t-strong t-mono">
+                        {hasItems && (
+                          <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Hide items' : 'Show items'} aria-expanded={open}
+                            onClick={() => setExpanded(open ? null : b._id)}>▸</button>
+                        )}
+                        {b.billNumber}
+                      </td>
                       <td><div className="t-strong">{b.userId?.partyName ?? '—'}</div><div className="hint">{b.userId?.phoneNumber ?? ''}</div></td>
                       <td className="hint">{b.userId?.region || '—'}</td>
                       <td className="hint">{b.tierAtBill || b.userId?.tier || '—'}</td>
                       <td className="t-num">₹{formatNumber(b.billAmount)}</td>
-                      <td className="t-num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
+                      <td className="t-num">{b.excluded ? <span className="pending" title="Disregarded — earns no points">+0</span> : b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
                       <td className="hint">{formatDate(b.billDate)}</td>
-                      <td>{busy ? <span className="src-tag busy">synced</span> : <span className="src-tag">manual</span>}</td>
                       <td>
-                        {busy ? (
-                          <span className="hint" title="Synced from the Busy push — edited automatically">auto</span>
-                        ) : (
-                          <div className="t-actions">
-                            <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
-                            <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
-                          </div>
-                        )}
+                        {busy
+                          ? <span className="src-tag busy" title={b.locked ? 'Synced from Busy — you edited this, so the daily sync no longer touches it' : 'Synced from the daily Busy push'}>{b.locked ? 'synced · edited' : 'synced'}</span>
+                          : <span className="src-tag">manual</span>}
+                        {b.excluded && <span className="src-tag excl" title="Disregarded: no points, out of tier turnover">excluded</span>}
+                      </td>
+                      <td>
+                        <div className="t-actions">
+                          <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
+                          <button className="mini-btn" onClick={() => toggleExclude(b)} title={b.excluded ? 'Credit points again' : 'Award no points for this bill'}>{b.excluded ? 'Include' : 'Exclude'}</button>
+                          <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
+                        </div>
                       </td>
                     </tr>
+                    {open && hasItems && (
+                      <tr className="row-detail">
+                        <td colSpan={9}>
+                          <div className="bill-items">
+                            <table className="bi-table">
+                              <thead><tr><th>Item</th><th>Group</th><th>Brand</th><th>Cat</th><th className="t-num">Qty</th><th className="t-num">Value</th></tr></thead>
+                              <tbody>
+                                {b.lineItems!.map((li, i) => (
+                                  <tr key={i}>
+                                    <td className="t-mono">{li.item || '—'}</td>
+                                    <td>{li.group || '—'}</td>
+                                    <td className="hint">{li.brand || '—'}</td>
+                                    <td className="hint">{li.category || '—'}</td>
+                                    <td className="t-num">{li.qty}</td>
+                                    <td className="t-num">{formatRupees(li.value)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
                 {items.length === 0 && <tr><td colSpan={9} className="hint" style={{ textAlign: 'center', padding: 30 }}>No bills match these filters.</td></tr>}
@@ -238,7 +296,14 @@ function BillModal({ mode, bill, dealers, conv, onClose, onSaved }: {
           </select>
         </div>
       ) : (
-        <p className="hint">Dealer: <b>{bill?.userId?.partyName}</b> · {bill?.userId?.tier ?? 'No tier'}</p>
+        <>
+          <p className="hint">Dealer: <b>{bill?.userId?.partyName}</b> · {bill?.userId?.tier ?? 'No tier'}</p>
+          {(bill?.source ?? 'manual') === 'busy' && !bill?.locked && (
+            <p className="hint" style={{ color: 'var(--warn, #d9a441)' }}>
+              This is a synced Busy bill. Saving an edit takes it under manual control — the daily sync will stop updating it.
+            </p>
+          )}
+        </>
       )}
 
       <div className="form-grid">

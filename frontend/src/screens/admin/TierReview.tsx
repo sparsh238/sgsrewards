@@ -34,6 +34,14 @@ export default function TierReview() {
   const [applying, setApplying] = useState(false);
   const { toast, toastError } = useToast();
 
+  // Filters — the review list can be 100+ rows, so let the admin narrow by area,
+  // direction (promotion / demotion / new entrant) and name. Filtering never
+  // changes what's selected: `checked` persists across filters, so "Approve N"
+  // still applies every ticked dealer, on-screen or not.
+  const [regionF, setRegionF] = useState('All');
+  const [dirF, setDirF] = useState<'all' | 'up' | 'down' | 'new'>('all');
+  const [q, setQ] = useState('');
+
   const load = () => {
     setReview(null);
     apiJson<Review>('/api/superadmin/tier-review')
@@ -43,7 +51,26 @@ export default function TierReview() {
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const selectedCount = useMemo(() => Object.values(checked).filter(Boolean).length, [checked]);
-  const allOn = review ? selectedCount === review.changes.length && review.changes.length > 0 : false;
+
+  const regions = useMemo(
+    () => [...new Set((review?.changes ?? []).map((c) => c.region).filter(Boolean) as string[])].sort(),
+    [review],
+  );
+  const visible = useMemo(() => {
+    const list = review?.changes ?? [];
+    const needle = q.trim().toLowerCase();
+    return list.filter((c) => {
+      if (regionF !== 'All' && (c.region || '') !== regionF) return false;
+      if (dirF === 'new' && !c.isNewEntrant) return false;
+      if (dirF === 'up' && (c.isNewEntrant || c.direction !== 'up')) return false;
+      if (dirF === 'down' && c.direction !== 'down') return false;
+      if (needle && !c.partyName.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [review, regionF, dirF, q]);
+  // "Select all" acts on the VISIBLE rows only, and reads as on when they're all ticked.
+  const visibleAllOn = visible.length > 0 && visible.every((c) => checked[c.userId]);
+  const filtered = review ? visible.length !== review.changes.length : false;
 
   const apply = async (force = false) => {
     if (!review) return;
@@ -84,8 +111,27 @@ export default function TierReview() {
               Running once per quarter is the norm — recompute only if you edited this quarter's bills.
             </div>
           )}
+          <div className="chip-row" style={{ gap: 10, marginBottom: 14 }}>
+            {regions.length > 0 && (
+              <select className="input" style={{ width: 'auto' }} value={regionF} onChange={(e) => setRegionF(e.target.value)}>
+                <option value="All">All areas</option>
+                {regions.map((r) => <option key={r} value={r}>{r}</option>)}
+              </select>
+            )}
+            <button className={`fchip${dirF === 'all' ? ' on' : ''}`} onClick={() => setDirF('all')}>All <b className="fc-n">{review.counts.changes}</b></button>
+            <button className={`fchip${dirF === 'up' ? ' on' : ''}`} onClick={() => setDirF('up')}>▲ Promoted <b className="fc-n">{review.counts.up}</b></button>
+            <button className={`fchip${dirF === 'down' ? ' on' : ''}`} onClick={() => setDirF('down')}>▼ Dropped <b className="fc-n">{review.counts.down}</b></button>
+            <button className={`fchip${dirF === 'new' ? ' on' : ''}`} onClick={() => setDirF('new')}>New <b className="fc-n">{review.counts.newEntrants}</b></button>
+            <input className="input" style={{ width: 'auto', flex: '1 1 160px', maxWidth: 240 }} placeholder="Search dealer…" value={q} onChange={(e) => setQ(e.target.value)} />
+            {(regionF !== 'All' || dirF !== 'all' || q) && (
+              <button className="fchip" onClick={() => { setRegionF('All'); setDirF('all'); setQ(''); }}>Clear</button>
+            )}
+          </div>
+
           <div className="tr-summary">
-            <span className="tr-counts">{review.counts.changes} changes · {review.counts.up} up · {review.counts.down} down · {review.counts.newEntrants} new</span>
+            <span className="tr-counts">
+              {filtered ? `${visible.length} of ${review.counts.changes} shown` : `${review.counts.changes} changes`} · {review.counts.up} up · {review.counts.down} down · {review.counts.newEntrants} new · <b>{selectedCount} selected</b>
+            </span>
             {review.alreadyApplied ? (
               <button className="btn btn-ghost" style={{ width: 'auto', padding: '9px 16px' }} onClick={() => apply(true)} disabled={applying || selectedCount === 0}>
                 {applying ? 'Applying…' : `↻ Recompute & re-apply ${selectedCount}`}
@@ -105,15 +151,19 @@ export default function TierReview() {
                 <thead>
                   <tr>
                     <th style={{ width: 30 }}>
-                      <input type="checkbox" className="trow-check" checked={allOn}
-                        onChange={(e) => setChecked(Object.fromEntries(review.changes.map((c) => [c.userId, e.target.checked])))} />
+                      <input type="checkbox" className="trow-check" checked={visibleAllOn}
+                        aria-label="Select all shown"
+                        onChange={(e) => setChecked((m) => ({ ...m, ...Object.fromEntries(visible.map((c) => [c.userId, e.target.checked])) }))} />
                     </th>
                     <th>Dealer</th><th>Region</th><th>Billed</th>
                     <th style={{ textAlign: 'right' }}>Current</th><th className="tr-arrow">→</th><th>Proposed</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {review.changes.map((c) => (
+                  {visible.length === 0 && (
+                    <tr><td colSpan={7} className="hint" style={{ textAlign: 'center', padding: 30 }}>No dealers match these filters.</td></tr>
+                  )}
+                  {visible.map((c) => (
                     <tr key={c.userId}>
                       <td><input type="checkbox" className="trow-check" checked={!!checked[c.userId]}
                         onChange={(e) => setChecked((m) => ({ ...m, [c.userId]: e.target.checked }))} /></td>

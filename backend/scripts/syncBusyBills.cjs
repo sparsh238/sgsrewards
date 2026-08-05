@@ -66,13 +66,22 @@ const pointsForBill = (amount, tier, conv) => {
   // One row per (dealer, voucher, month): CD sum of the electronics lines + invoice date.
   const agg = await T.aggregate([
     { $match: { period: { $in: periods }, category: { $in: ELEC }, vch_no: { $nin: [null, '', 'NA'] } } },
-    { $group: { _id: { dealer: '$dealer', vch: '$vch_no', period: '$period' }, cd: { $sum: '$signed_value' }, date: { $max: '$date_dt' } } },
+    { $group: {
+      _id: { dealer: '$dealer', vch: '$vch_no', period: '$period' },
+      cd: { $sum: '$signed_value' }, date: { $max: '$date_dt' },
+      // Item-wise breakdown: one entry per electronics stock line on the invoice.
+      items: { $push: { item: '$item_text', group: '$item_group', brand: '$brand', category: '$category', qty: '$signed_qty', value: '$signed_value' } },
+    } },
   ]).toArray();
-  // gstin -> [ {vch, period, cd, date} ]
+  // gstin -> [ {vch, period, cd, date, items} ]
   const invByGst = new Map();
   for (const a of agg) {
     const g = dealerGst.get(a._id.dealer); if (!g) continue;
-    (invByGst.get(g) || invByGst.set(g, []).get(g)).push({ vch: String(a._id.vch), period: a._id.period, cd: Math.round(a.cd), date: a.date });
+    const items = (a.items || []).map((it) => ({
+      item: it.item || '', group: it.group || '', brand: it.brand || '', category: it.category || '',
+      qty: Number(it.qty) || 0, value: Math.round(Number(it.value) || 0),
+    }));
+    (invByGst.get(g) || invByGst.set(g, []).get(g)).push({ vch: String(a._id.vch), period: a._id.period, cd: Math.round(a.cd), date: a.date, items });
   }
   await bi.close();
 
@@ -94,25 +103,36 @@ const pointsForBill = (amount, tier, conv) => {
       const key = `${iv.vch}|${iv.period}`; seen.add(key);
       const pts = pointsForBill(iv.cd, u.tier, conv);
       const ex = existing.get(key);
+      // Admin took manual control of this bill (edited or deleted it). Leave it
+      // exactly as-is — don't overwrite the admin's amount/points, and don't
+      // resurrect a voided (admin-deleted) bill. `seen` above already protects it
+      // from the vanished-invoice reversal below.
+      if (ex && ex.locked) { unchanged++; continue; }
       const billDate = iv.date instanceof Date ? iv.date : new Date(`${iv.period}-01T00:00:00Z`);
       if (!ex) {
         if (!DRY) {
-          await B.insertOne({ userId: u._id, billNumber: iv.vch, billDate, billAmount: iv.cd, pointsAwarded: pts, tierAtBill: u.tier, period: iv.period, source: 'busy' });
+          await B.insertOne({ userId: u._id, billNumber: iv.vch, billDate, billAmount: iv.cd, pointsAwarded: pts, tierAtBill: u.tier, period: iv.period, source: 'busy', lineItems: iv.items });
           if (pts > 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $add: ['$availablePoints', pts] }] }, totalPoints: { $max: [0, { $add: ['$totalPoints', pts] }] } } }]);
         }
         created++; ptsDelta += pts; userPts += pts; touched = true;
       } else if (ex.billAmount !== iv.cd) {
         const delta = pts - (typeof ex.pointsAwarded === 'number' ? ex.pointsAwarded : 0);
         if (!DRY) {
-          await B.updateOne({ _id: ex._id }, { $set: { billAmount: iv.cd, pointsAwarded: pts, tierAtBill: u.tier, billDate } });
+          await B.updateOne({ _id: ex._id }, { $set: { billAmount: iv.cd, pointsAwarded: pts, tierAtBill: u.tier, billDate, lineItems: iv.items } });
           if (delta !== 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $add: ['$availablePoints', delta] }] }, totalPoints: { $max: [0, { $add: ['$totalPoints', delta] }] } } }]);
         }
         updated++; ptsDelta += delta; userPts += delta; touched = true;
+      } else if (!ex.lineItems || ex.lineItems.length === 0) {
+        // Amount identical but items missing (bill predates line-item capture) —
+        // backfill the item breakdown only. Points/tier untouched.
+        if (!DRY) await B.updateOne({ _id: ex._id }, { $set: { lineItems: iv.items } });
+        unchanged++;
       } else { unchanged++; }
     }
     // invoices that vanished (voided / no longer in window) -> reverse + remove
     for (const [key, ex] of existing) {
       if (seen.has(key)) continue;
+      if (ex.locked) continue; // admin-controlled (edited/voided) — never auto-reverse
       const back = typeof ex.pointsAwarded === 'number' ? ex.pointsAwarded : 0;
       if (!DRY) {
         if (back > 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $subtract: ['$availablePoints', back] }] }, totalPoints: { $max: [0, { $subtract: ['$totalPoints', back] }] } } }]);

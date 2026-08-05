@@ -9,6 +9,10 @@ export interface Bill extends Document {
     tierAtBill: string;
     period: string;
     source: string;
+    locked: boolean;
+    voided: boolean;
+    excluded: boolean;
+    lineItems: Array<{ item: string; group: string; brand: string; category: string; qty: number; value: number }>;
 }
 
 const BillSchema: Schema = new Schema({
@@ -31,6 +35,30 @@ const BillSchema: Schema = new Schema({
     // push sync). The sync only ever touches its own 'busy' bills — manual bills
     // are never clobbered. One 'busy' bill per (userId, period).
     source: { type: String, default: 'manual', index: true },
+    // Admin took manual control of a synced bill (edited it). The Busy sync then
+    // leaves it entirely alone — it won't overwrite the amount/points or reverse
+    // it if the underlying voucher later vanishes. No effect on manual bills.
+    locked: { type: Boolean, default: false },
+    // Soft-delete. Set when an admin deletes a synced ('busy') bill: the points
+    // are reversed and the row is hidden from every list, but it survives so the
+    // idempotent sync can't re-create it from the still-present Busy voucher.
+    // Manual bills are hard-deleted instead and never carry this.
+    voided: { type: Boolean, default: false },
+    // Admin chose to DISREGARD this bill: it awards 0 points AND is left out of
+    // tier-turnover totals (the overview/dealer aggregations filter it out). The
+    // row stays for the record, tagged "excluded". Reversible.
+    excluded: { type: Boolean, default: false },
+    // Item-wise breakdown from the Busy invoice (synced bills only). One entry per
+    // stock line: model, product group, brand, category, quantity and line value.
+    // Lets the admin see exactly what went into a bill before deciding on points.
+    lineItems: {
+        type: [{
+            item: String, group: String, brand: String, category: String,
+            qty: Number, value: Number,
+            _id: false,
+        }],
+        default: undefined,
+    },
 });
 
 export default mongoose.model<Bill>('Bill', BillSchema);
