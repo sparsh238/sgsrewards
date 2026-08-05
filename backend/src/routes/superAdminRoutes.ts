@@ -11,7 +11,7 @@ router.post('/sales-user', authMiddleware('superadmin'), addSalesUser);
 router.delete('/users/:id', authMiddleware('superadmin'), deleteUser);
 router.post('/users/:id/block', authMiddleware('superadmin'), blockUser);
 router.post('/users/:id/reset-password', authMiddleware('superadmin'), resetPassword);
-router.get('/system/points-conversion', authMiddleware('superadmin', 'admin', 'customer'), getPointsConversion);
+router.get('/system/points-conversion', authMiddleware('superadmin', 'admin', 'customer', 'sales'), getPointsConversion);
 router.put('/system/points-conversion', authMiddleware('superadmin'), updatePointsConversion);
 router.post('/users/refresh', authMiddleware('superadmin'), refreshUserList);
 router.post('/users/change-tier', authMiddleware('superadmin'), changeUserTier);

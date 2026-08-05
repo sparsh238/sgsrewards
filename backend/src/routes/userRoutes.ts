@@ -24,7 +24,7 @@ router.post('/cart/checkout', authMiddleware('customer'), checkout);
 // reset; dealers use set-pin instead.
 // Staff only — dealers set a 4-digit PIN via /set-pin. Allowing a dealer to set a
 // free-form password here would lock them out of PIN login (loginWithPin needs 4 digits).
-router.post('/change-password', authMiddleware('admin', 'superadmin'), changePassword);
+router.post('/change-password', authMiddleware('admin', 'superadmin', 'sales'), changePassword);
 router.post('/set-pin', authMiddleware('customer'), setPin);
 
 export default router;
