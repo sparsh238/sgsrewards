@@ -360,8 +360,8 @@ const getSalesAreas = async (_req: Request, res: Response) => {
 // assigned areas. Username must be unique; the temp password forces a reset on
 // first login. `readOnly: true` = Sales Head (view-only over their scope).
 const addSalesUser = async (req: Request, res: Response) => {
-  const { partyName, username, password, areas, readOnly } = req.body as {
-    partyName?: string; username?: string; password?: string; areas?: string[]; readOnly?: boolean;
+  const { partyName, username, password, areas, readOnly, salesHead } = req.body as {
+    partyName?: string; username?: string; password?: string; areas?: string[]; readOnly?: boolean; salesHead?: string;
   };
   if (!partyName || !username || !password) {
     return res.status(400).send({ error: 'Name, username and a temp password are required' });
@@ -375,13 +375,20 @@ const addSalesUser = async (req: Request, res: Response) => {
       return res.status(400).send({ error: 'That username is already taken' });
     }
     const { salesRegions, salesBooks } = areasToScope(validAreas);
-    const user = new User({
+    const doc: Record<string, unknown> = {
       username, partyName,
       phoneNumber: req.body.phoneNumber || username, // schema requires non-empty; username is a safe placeholder
       password: await bcrypt.hash(String(password), 8),
       userType: 'sales', isPasswordReset: false,
       salesReadOnly: !!readOnly, salesAreas: validAreas, salesRegions, salesBooks,
-    });
+    };
+    // A rep can report to a Sales Head (linked by the head's username); heads report to no one.
+    if (!readOnly && salesHead) {
+      const head = await User.findOne({ username: salesHead, userType: 'sales', salesReadOnly: true });
+      if (!head) return res.status(400).send({ error: 'Selected sales head not found' });
+      doc.salesHead = salesHead;
+    }
+    const user = new User(doc);
     await user.save();
     res.status(201).send(user);
   } catch (error) {
@@ -389,4 +396,55 @@ const addSalesUser = async (req: Request, res: Response) => {
   }
 };
 
-export { getAllUsers, addUser, addSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer };
+// Edit a sales login: name, areas (scope recomputed), rep/head role, and which
+// Sales Head a rep reports to. Username + password are left untouched (password
+// changes go through the reset flow).
+const updateSalesUser = async (req: Request, res: Response) => {
+  const { id } = req.params;
+  const { partyName, areas, readOnly, salesHead } = req.body as {
+    partyName?: string; areas?: string[]; readOnly?: boolean; salesHead?: string | null;
+  };
+  try {
+    const user = await User.findById(id);
+    if (!user || user.userType !== 'sales') {
+      return res.status(404).send({ error: 'Salesperson not found' });
+    }
+    const set: Record<string, unknown> = {};
+    const unset: Record<string, unknown> = {};
+
+    if (typeof partyName === 'string' && partyName.trim()) set.partyName = partyName.trim();
+
+    if (Array.isArray(areas)) {
+      const validAreas = areas.filter((a) => AREAS[a]);
+      if (validAreas.length === 0) return res.status(400).send({ error: 'Assign at least one area' });
+      const { salesRegions, salesBooks } = areasToScope(validAreas);
+      set.salesAreas = validAreas; set.salesRegions = salesRegions; set.salesBooks = salesBooks;
+    }
+
+    const willBeHead = typeof readOnly === 'boolean' ? readOnly : !!user.salesReadOnly;
+    if (typeof readOnly === 'boolean') set.salesReadOnly = readOnly;
+
+    if (willBeHead) {
+      unset.salesHead = ''; // heads never report to a head
+    } else if (salesHead !== undefined) {
+      if (salesHead) {
+        if (salesHead === user.username) return res.status(400).send({ error: 'A salesperson cannot report to themselves' });
+        const head = await User.findOne({ username: salesHead, userType: 'sales', salesReadOnly: true });
+        if (!head) return res.status(400).send({ error: 'Selected sales head not found' });
+        set.salesHead = salesHead;
+      } else {
+        unset.salesHead = '';
+      }
+    }
+
+    const ops: Record<string, unknown> = {};
+    if (Object.keys(set).length) ops.$set = set;
+    if (Object.keys(unset).length) ops.$unset = unset;
+    const updated = Object.keys(ops).length ? await User.findByIdAndUpdate(id, ops, { new: true }) : user;
+    res.send(updated);
+  } catch (error) {
+    res.status(400).send({ error: 'Could not update the sales user' });
+  }
+};
+
+export { getAllUsers, addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer };

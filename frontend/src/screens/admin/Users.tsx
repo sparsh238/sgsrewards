@@ -25,6 +25,7 @@ interface UserRow {
   userType: 'customer' | 'admin' | 'superadmin' | 'sales';
   salesReadOnly?: boolean;
   salesAreas?: string[];
+  salesHead?: string;
   availablePoints: number;
   tier: Tier;
   blocked?: boolean;
@@ -43,6 +44,7 @@ export default function Users() {
   const [editFor, setEditFor] = useState<UserRow | null>(null);
   const [tab, setTab] = useState<'dealers' | 'team' | 'sales'>('dealers');
   const [addSalesOpen, setAddSalesOpen] = useState(false);
+  const [editSalesFor, setEditSalesFor] = useState<UserRow | null>(null);
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const [scheme, setScheme] = useState<'all' | 'active' | 'redeem'>('all');
   const [region, setRegion] = useState<string>('All');
@@ -77,6 +79,8 @@ export default function Users() {
   const dealers = useMemo(() => (users ?? []).filter((u) => u.userType === 'customer'), [users]);
   const staff = useMemo(() => (users ?? []).filter((u) => u.userType === 'admin' || u.userType === 'superadmin'), [users]);
   const salespeople = useMemo(() => (users ?? []).filter((u) => u.userType === 'sales'), [users]);
+  const salesHeads = useMemo(() => salespeople.filter((u) => u.salesReadOnly).map((u) => ({ username: u.username, partyName: u.partyName })), [salespeople]);
+  const headName = (uname?: string) => salespeople.find((s) => s.username === uname)?.partyName ?? uname;
   const isActive = (u: UserRow) => u.inScheme !== false;
   const regions = useMemo(() => [...new Set(dealers.map((u) => u.region).filter(Boolean) as string[])].sort(), [dealers]);
 
@@ -168,10 +172,16 @@ export default function Users() {
                 <tr key={u._id}>
                   <td className="t-strong" data-label="Salesperson">{u.partyName}</td>
                   <td className="hint t-mono" data-label="Username">{u.username}</td>
-                  <td data-label="Role">{u.salesReadOnly ? <span className="ro-tag">Sales Head</span> : 'Salesperson'}</td>
+                  <td data-label="Role">
+                    {u.salesReadOnly ? <span className="ro-tag">Sales Head</span> : 'Salesperson'}
+                    {!u.salesReadOnly && u.salesHead && <div className="hint">under {headName(u.salesHead)}</div>}
+                  </td>
                   <td className="hint" data-label="Areas">{(u.salesAreas ?? []).join(', ') || '—'}</td>
                   <td data-label="Access"><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
-                  <td className="cell-actions"><div className="t-actions"><button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button></div></td>
+                  <td className="cell-actions"><div className="t-actions">
+                    <button className="mini-btn" onClick={() => setEditSalesFor(u)}>Edit</button>
+                    <button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button>
+                  </div></td>
                 </tr>
               ))}
               {salespeople.length === 0 && <tr><td colSpan={6} className="hint" style={{ textAlign: 'center', padding: 30 }}>No salespeople yet — add one to get started.</td></tr>}
@@ -250,7 +260,8 @@ export default function Users() {
       )}
 
       {addOpen && <AddUserModal isSuper={isSuper} defaultStaff={tab === 'team'} onClose={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); load(); }} />}
-      {addSalesOpen && <AddSalesModal onClose={() => setAddSalesOpen(false)} onSaved={() => { setAddSalesOpen(false); load(); }} />}
+      {addSalesOpen && <AddSalesModal heads={salesHeads} onClose={() => setAddSalesOpen(false)} onSaved={() => { setAddSalesOpen(false); load(); }} />}
+      {editSalesFor && <EditSalesModal user={editSalesFor} heads={salesHeads} onClose={() => setEditSalesFor(null)} onSaved={() => { setEditSalesFor(null); load(); }} />}
       {resetFor && <ResetModal user={resetFor} onClose={() => setResetFor(null)} />}
       {editFor && <EditDealerModal user={editFor} onClose={() => setEditFor(null)} onSaved={() => { setEditFor(null); load(); }} />}
     </>
@@ -409,9 +420,12 @@ function ResetModal({ user, onClose }: { user: { _id: string; partyName: string;
 
 // Create a sales-team login: name, username, temp password, role (rep / read-only
 // head) and one or more areas. Scope is derived from the areas server-side.
-function AddSalesModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+type SalesHead = { username: string; partyName: string };
+
+function AddSalesModal({ heads, onClose, onSaved }: { heads: SalesHead[]; onClose: () => void; onSaved: () => void }) {
   const [form, setForm] = useState({ partyName: '', username: '', password: '' });
   const [readOnly, setReadOnly] = useState(false);
+  const [head, setHead] = useState('');
   const [areas, setAreas] = useState<string[]>([]);
   const [allAreas, setAllAreas] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
@@ -425,7 +439,7 @@ function AddSalesModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
     if (areas.length === 0) { toastError('Assign at least one area.'); return; }
     setBusy(true);
     try {
-      await apiJson('/api/superadmin/sales-user', { method: 'POST', json: { partyName: form.partyName.trim(), username: form.username.trim(), password: form.password, areas, readOnly } });
+      await apiJson('/api/superadmin/sales-user', { method: 'POST', json: { partyName: form.partyName.trim(), username: form.username.trim(), password: form.password, areas, readOnly, salesHead: readOnly ? undefined : (head || undefined) } });
       toast(`${form.partyName.trim()} created`);
       onSaved();
     } catch (err) { toastError((err as Error).message); }
@@ -446,6 +460,15 @@ function AddSalesModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
         </div>
         <button type="button" className={`switch${readOnly ? ' on' : ''}`} role="switch" aria-checked={readOnly} aria-label="Sales head" onClick={() => setReadOnly((v) => !v)} />
       </div>
+      {!readOnly && (
+        <div className="field">
+          <label htmlFor="sp-h">Reports to <span className="hint">· sales head</span></label>
+          <select id="sp-h" className="input" value={head} onChange={(e) => setHead(e.target.value)}>
+            <option value="">— none —</option>
+            {heads.map((h) => <option key={h.username} value={h.username}>{h.partyName}</option>)}
+          </select>
+        </div>
+      )}
       <div className="field">
         <label>Areas <span className="hint">· pick one or more</span></label>
         <div className="chip-row" style={{ flexWrap: 'wrap', gap: 8 }}>
@@ -456,6 +479,68 @@ function AddSalesModal({ onClose, onSaved }: { onClose: () => void; onSaved: () 
       <div className="modal-actions">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+function EditSalesModal({ user, heads, onClose, onSaved }: { user: UserRow; heads: SalesHead[]; onClose: () => void; onSaved: () => void }) {
+  const [partyName, setPartyName] = useState(user.partyName);
+  const [readOnly, setReadOnly] = useState(!!user.salesReadOnly);
+  const [head, setHead] = useState(user.salesHead ?? '');
+  const [areas, setAreas] = useState<string[]>(user.salesAreas ?? []);
+  const [allAreas, setAllAreas] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const { toast, toastError } = useToast();
+  useEffect(() => { apiJson<{ areas: string[] }>('/api/superadmin/sales-areas').then((d) => setAllAreas(d.areas)).catch(() => {}); }, []);
+  const toggleArea = (a: string) => setAreas((x) => x.includes(a) ? x.filter((y) => y !== a) : [...x, a]);
+  // A head can't report to themselves; exclude this user from the head list.
+  const headOptions = heads.filter((h) => h.username !== user.username);
+
+  const save = async () => {
+    if (!partyName.trim()) { toastError('Name is required.'); return; }
+    if (areas.length === 0) { toastError('Assign at least one area.'); return; }
+    setBusy(true);
+    try {
+      await apiJson(`/api/superadmin/sales-user/${user._id}`, { method: 'PATCH', json: { partyName: partyName.trim(), areas, readOnly, salesHead: readOnly ? null : (head || null) } });
+      toast(`${partyName.trim()} updated`);
+      onSaved();
+    } catch (err) { toastError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title={`Edit · ${user.partyName}`} onClose={onClose}>
+      <div className="form-grid">
+        <div className="field"><label htmlFor="es-n">Name</label><input id="es-n" className="input" value={partyName} onChange={(e) => setPartyName(e.target.value)} /></div>
+        <div className="field"><label htmlFor="es-u">Username</label><input id="es-u" className="input" value={user.username} disabled title="Login username can't be changed" /></div>
+      </div>
+      <div className="scheme-toggle">
+        <div>
+          <div className="st-title">Sales Head — view only</div>
+          <div className="st-sub">{readOnly ? 'Oversees these areas; cannot edit bills/orders.' : 'Full access within these areas.'}</div>
+        </div>
+        <button type="button" className={`switch${readOnly ? ' on' : ''}`} role="switch" aria-checked={readOnly} aria-label="Sales head" onClick={() => setReadOnly((v) => !v)} />
+      </div>
+      {!readOnly && (
+        <div className="field">
+          <label htmlFor="es-h">Reports to <span className="hint">· sales head</span></label>
+          <select id="es-h" className="input" value={head} onChange={(e) => setHead(e.target.value)}>
+            <option value="">— none —</option>
+            {headOptions.map((h) => <option key={h.username} value={h.username}>{h.partyName}</option>)}
+          </select>
+        </div>
+      )}
+      <div className="field">
+        <label>Areas <span className="hint">· pick one or more</span></label>
+        <div className="chip-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          {allAreas.map((a) => <button key={a} type="button" className={`fchip${areas.includes(a) ? ' on' : ''}`} onClick={() => toggleArea(a)}>{a}</button>)}
+        </div>
+      </div>
+      <p className="hint">Changing areas re-scopes which dealers, bills and orders they see. Use <b>Reset password</b> to issue a new temp password.</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Saving…' : 'Save changes'}</button>
       </div>
     </Modal>
   );
