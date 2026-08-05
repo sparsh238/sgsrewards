@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { formatNumber, formatRupees, formatDate } from '../../lib/format';
 import { tierTargetLines, type Tier } from '../../lib/tier';
@@ -31,6 +31,15 @@ interface Summary {
   };
   lifetime: { billed: number; earned: number; count: number };
   recent: RecentBill[];
+  redemptions: { count: number; points: number; recent: Redemption[] };
+}
+
+interface Redemption {
+  _id: string;
+  orderIdAlias: string;
+  totalValue: number;
+  orderDate: string;
+  items: { itemId: { name?: string } | null; quantity: number }[];
 }
 
 const VERDICT: Record<Summary['quarter']['status'], { label: string; cls: string }> = {
@@ -141,42 +150,57 @@ export default function DealerCard({ userId }: { userId: string }) {
         </section>
       </div>
 
-      {/* Recent bills */}
+      {/* Recent bills — responsive list, tap a synced bill to see its items */}
       <div className="dc-recent">
         <h4>Recent bills</h4>
         {recent.length === 0 ? (
           <p className="hint">No bills recorded yet.</p>
         ) : (
-          <table className="dc-bills">
-            <tbody>
-              {recent.map((b) => {
-                const hasItems = (b.lineItems?.length ?? 0) > 0;
-                const open = itemsOpen === b._id;
-                return (
-                <Fragment key={b._id}>
-                <tr>
-                  <td className="t-mono">
-                    {hasItems && (
-                      <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Hide items' : 'Show items'} aria-expanded={open}
-                        onClick={() => setItemsOpen(open ? null : b._id)}>▸</button>
-                    )}
-                    {b.billNumber}
-                  </td>
-                  <td className="hint">{formatDate(b.billDate)}</td>
-                  <td className="t-num">{formatRupees(b.billAmount)}</td>
-                  <td className="t-num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
-                  <td>{(b.source ?? 'manual') === 'busy'
-                    ? <span className="src-tag busy">{b.locked ? 'synced · edited' : 'synced'}</span>
-                    : <span className="src-tag">manual</span>}{b.excluded && <span className="src-tag excl">excluded</span>}</td>
-                </tr>
-                {open && hasItems && (
-                  <tr><td colSpan={5} style={{ padding: 0 }}><BillItems items={b.lineItems!} /></td></tr>
-                )}
-                </Fragment>
-                );
-              })}
-            </tbody>
-          </table>
+          <div className="dc-list">
+            {recent.map((b) => {
+              const hasItems = (b.lineItems?.length ?? 0) > 0;
+              const open = itemsOpen === b._id;
+              return (
+                <div className="dc-litem" key={b._id}>
+                  <div className={`dc-lrow${hasItems ? ' tappable' : ''}`} onClick={hasItems ? () => setItemsOpen(open ? null : b._id) : undefined}>
+                    <div className="dc-lmain">
+                      <span className="t-mono">{hasItems && <span className={`row-caret${open ? ' open' : ''}`}>▸</span>}{b.billNumber}</span>
+                      <span className="hint">{formatDate(b.billDate)}</span>
+                    </div>
+                    <div className="dc-lmeta">
+                      <span className="t-num">{formatRupees(b.billAmount)}</span>
+                      <span className="t-num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</span>
+                      {(b.source ?? 'manual') === 'busy'
+                        ? <span className="src-tag busy">{b.locked ? 'synced · edited' : 'synced'}</span>
+                        : <span className="src-tag">manual</span>}
+                      {b.excluded && <span className="src-tag excl">excluded</span>}
+                    </div>
+                  </div>
+                  {open && hasItems && <BillItems items={b.lineItems!} />}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Redemptions — fulfilled reward orders */}
+      <div className="dc-recent">
+        <h4>Redemptions {data.redemptions.count > 0 && <span className="hint">{formatNumber(data.redemptions.count)} · {formatNumber(data.redemptions.points)} pts spent</span>}</h4>
+        {data.redemptions.recent.length === 0 ? (
+          <p className="hint">No redemptions yet.</p>
+        ) : (
+          <div className="dc-list">
+            {data.redemptions.recent.map((o) => (
+              <div className="dc-lrow" key={o._id}>
+                <div className="dc-lmain">
+                  <span className="t-strong">{o.items[0]?.itemId?.name ?? 'Reward'}{o.items.length > 1 ? ` +${o.items.length - 1} more` : ''}</span>
+                  <span className="hint">{o.orderIdAlias} · {formatDate(o.orderDate)}</span>
+                </div>
+                <div className="dc-lmeta"><span className="t-num">−{formatNumber(o.totalValue)} pts</span></div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>

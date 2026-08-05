@@ -101,7 +101,7 @@ const getDealerSummary = async (req: Request, res: Response) => {
     const notVoided = { userId: user._id, voided: { $ne: true } };
     // Turnover math disregards excluded bills; the recent list still shows them (tagged).
     const counts = { ...notVoided, excluded: { $ne: true } };
-    const [quarterAgg, lifeAgg, recent] = await Promise.all([
+    const [quarterAgg, lifeAgg, recent, redeemAgg, redemptions] = await Promise.all([
       Bill.aggregate([
         { $match: { ...counts, period: { $gte: fq.periodFrom, $lt: fq.periodTo } } },
         { $group: { _id: null, billed: { $sum: '$billAmount' }, earned: { $sum: '$pointsAwarded' }, count: { $sum: 1 } } },
@@ -112,6 +112,14 @@ const getDealerSummary = async (req: Request, res: Response) => {
       ]),
       Bill.find(notVoided).sort({ billDate: -1, _id: -1 }).limit(5)
         .select('billNumber billDate billAmount pointsAwarded tierAtBill source locked excluded lineItems'),
+      // Redemptions = fulfilled (Completed) reward orders.
+      Order.aggregate([
+        { $match: { userId: user._id, status: 'Completed' } },
+        { $group: { _id: null, count: { $sum: 1 }, points: { $sum: '$totalValue' } } },
+      ]),
+      Order.find({ userId: user._id, status: 'Completed' }).sort({ orderDate: -1, _id: -1 }).limit(5)
+        .populate({ path: 'items.itemId', select: 'name' })
+        .select('orderIdAlias totalValue orderDate items status'),
     ]);
 
     const billed = quarterAgg[0]?.billed ?? 0;
@@ -140,6 +148,7 @@ const getDealerSummary = async (req: Request, res: Response) => {
       },
       lifetime: { billed: lifeAgg[0]?.billed ?? 0, earned: lifeAgg[0]?.earned ?? 0, count: lifeAgg[0]?.count ?? 0 },
       recent,
+      redemptions: { count: redeemAgg[0]?.count ?? 0, points: redeemAgg[0]?.points ?? 0, recent: redemptions },
     });
   } catch (error) {
     res.status(500).send({ error: 'Failed to build dealer summary' });
