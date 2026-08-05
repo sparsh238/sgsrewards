@@ -25,6 +25,7 @@ export default function AdminShell() {
         <button className="admin-burger" aria-label="Menu" aria-expanded={navOpen} onClick={() => setNavOpen((o) => !o)}>☰</button>
         <div className="admin-brand" style={{ padding: 0 }}>SGS</div>
         <div className="admin-role" style={{ padding: 0, marginLeft: 'auto' }}>{roleLabel}</div>
+        <button className="admin-topout" onClick={logout}>Log out</button>
       </div>
       <aside className="admin-sidebar">
         <div className="admin-brand">SGS</div>
