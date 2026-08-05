@@ -1,5 +1,8 @@
 # SGS Rewards — Staging deploy (Hostinger VPS)
 
+> ✅ **LIVE at https://staging.sgsrewards.in** (DNS + reverse proxy + Let's Encrypt SSL all set up). Redeploy code with `./deploy-staging.sh`.
+
+
 A throwaway, isolated copy of the app for live testing, on its own subdomain
 **https://staging.sgsrewards.in**. Completely separate from production:
 
