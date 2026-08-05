@@ -13,6 +13,6 @@ router.get('/orders', authMiddleware('admin', 'superadmin', 'sales'), getOrders)
 router.get('/overview', authMiddleware('admin', 'superadmin', 'sales'), getOverview);
 router.get('/calendar', authMiddleware('admin', 'superadmin', 'sales'), getCalendar);
 router.get('/:orderId', authMiddleware('customer', 'admin', 'superadmin', 'sales'), getOrderById);
-router.patch('/:orderId/status', authMiddleware('admin', 'superadmin', 'sales'), updateOrderStatus);
+router.patch('/:orderId/status', authMiddleware('admin', 'superadmin'), updateOrderStatus);
 
 export default router;

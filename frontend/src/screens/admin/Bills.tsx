@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
 import { formatDate, formatNumber } from '../../lib/format';
 import { type Tier } from '../../lib/tier';
@@ -51,6 +52,8 @@ export default function Bills() {
   const [error, setError] = useState('');
   const [modal, setModal] = useState<null | { mode: 'add' } | { mode: 'edit'; bill: BillRow }>(null);
   const { toast, toastError } = useToast();
+  const { auth } = useAuth();
+  const isSales = auth.userType === 'sales'; // sales are read-only on bills
 
   // Filters + pagination
   const [page, setPage] = useState(1);
@@ -119,12 +122,14 @@ export default function Bills() {
   return (
     <>
       <div className="admin-head">
-        <div><h1>Bills</h1><p className="page-sub">Recording a bill credits points by the dealer's tier rate.</p></div>
+        <div><h1>Bills</h1><p className="page-sub">{isSales ? "Your dealers' bills this quarter." : "Recording a bill credits points by the dealer's tier rate."}</p></div>
         <div className="admin-toolbar">
           <SearchInput value={search} onChange={setSearch} placeholder="Search bill / dealer…" />
-          <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setModal({ mode: 'add' })}>
-            + Add bill
-          </button>
+          {!isSales && (
+            <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setModal({ mode: 'add' })}>
+              + Add bill
+            </button>
+          )}
         </div>
       </div>
 
@@ -191,13 +196,15 @@ export default function Bills() {
                           : <span className="src-tag">manual</span>}
                         {b.excluded && <span className="src-tag excl" title="Disregarded: no points, out of tier turnover">excluded</span>}
                       </td>
-                      <td className="cell-actions">
-                        <div className="t-actions">
-                          <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
-                          <button className="mini-btn" onClick={() => toggleExclude(b)} title={b.excluded ? 'Credit points again' : 'Award no points for this bill'}>{b.excluded ? 'Include' : 'Exclude'}</button>
-                          <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
-                        </div>
-                      </td>
+                      {!isSales && (
+                        <td className="cell-actions">
+                          <div className="t-actions">
+                            <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
+                            <button className="mini-btn" onClick={() => toggleExclude(b)} title={b.excluded ? 'Credit points again' : 'Award no points for this bill'}>{b.excluded ? 'Include' : 'Exclude'}</button>
+                            <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
+                          </div>
+                        </td>
+                      )}
                     </tr>
                     {dealerOpen === b._id && b.userId?._id && (
                       <tr className="row-detail">

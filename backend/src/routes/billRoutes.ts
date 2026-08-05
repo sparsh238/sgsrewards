@@ -4,12 +4,12 @@ import {addBill, getUserBills, getAllBills, getBillById, editBill, deleteBill, s
 
 const router = Router();
 
-router.post('/', authMiddleware('admin', 'superadmin', 'sales'), addBill);
+router.post('/', authMiddleware('admin', 'superadmin'), addBill);
 router.get('/user', authMiddleware('customer', 'admin', 'superadmin'), getUserBills);
 router.get('/:id', authMiddleware('admin', 'superadmin'), getBillById);
-router.get('/', authMiddleware('admin', 'superadmin', 'sales'), getAllBills);
-router.patch('/:id/exclude', authMiddleware('admin', 'superadmin', 'sales'), setBillExcluded);
-router.patch('/:id', authMiddleware('admin', 'superadmin', 'sales'), editBill);
-router.delete('/:id', authMiddleware('admin', 'superadmin', 'sales'), deleteBill);
+router.get('/', authMiddleware('admin', 'superadmin', 'sales'), getAllBills); // sales: read-only
+router.patch('/:id/exclude', authMiddleware('admin', 'superadmin'), setBillExcluded);
+router.patch('/:id', authMiddleware('admin', 'superadmin'), editBill);
+router.delete('/:id', authMiddleware('admin', 'superadmin'), deleteBill);
 
 export default router;

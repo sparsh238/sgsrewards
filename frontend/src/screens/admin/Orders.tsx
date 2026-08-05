@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
+import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
 import { formatDate, formatNumber } from '../../lib/format';
 import SearchInput from '../../components/SearchInput';
@@ -19,6 +20,8 @@ interface AdminOrder {
 const STATUSES: AdminOrder['status'][] = ['Pending', 'Completed', 'Cancelled'];
 
 export default function Orders() {
+  const { auth } = useAuth();
+  const isSales = auth.userType === 'sales'; // sales can't change order status
   const [orders, setOrders] = useState<AdminOrder[] | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | AdminOrder['status']>('All');
@@ -103,14 +106,18 @@ export default function Orders() {
                   <td className="t-num" data-label="Points">{formatNumber(o.totalValue)}</td>
                   <td className="hint" data-label="Date">{formatDate(o.orderDate)}</td>
                   <td data-label="Status">
-                    <select
-                      className={`pill ${o.status.toLowerCase()}`}
-                      style={{ border: 'none', cursor: 'pointer', padding: '4px 8px' }}
-                      value={o.status}
-                      onChange={(e) => changeStatus(o, e.target.value as AdminOrder['status'])}
-                    >
-                      {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    {isSales ? (
+                      <span className={`pill ${o.status.toLowerCase()}`}>{o.status}</span>
+                    ) : (
+                      <select
+                        className={`pill ${o.status.toLowerCase()}`}
+                        style={{ border: 'none', cursor: 'pointer', padding: '4px 8px' }}
+                        value={o.status}
+                        onChange={(e) => changeStatus(o, e.target.value as AdminOrder['status'])}
+                      >
+                        {STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
                   </td>
                 </tr>
                 {dealerOpen === o._id && o.userId?._id && (

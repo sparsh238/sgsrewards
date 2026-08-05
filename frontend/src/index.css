@@ -2076,3 +2076,11 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
   border-radius: 8px; padding: 6px 12px; font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .admin-topout:hover { color: var(--ink); border-color: var(--copper-deep); }
 @media (max-width: 720px) { .admin-sidebar { overflow-y: auto; } }
+
+/* Card header: first cell (name / bill# / order) spans full width as the title */
+@media (max-width: 720px) {
+  table.data > tbody > tr > td:first-child { display: block; text-align: left; font-size: 14px;
+    padding: 10px 14px 8px; border-bottom: 1px solid var(--hairline); }
+  table.data > tbody > tr > td:first-child::before { content: none; }
+  table.data > tbody > tr > td:first-child .hint { font-size: 12px; }
+}

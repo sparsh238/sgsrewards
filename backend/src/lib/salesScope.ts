@@ -10,7 +10,7 @@ interface ScopeUser {
   salesReadOnly?: boolean;
 }
 // A dealer's scope-relevant fields — matched against a sales user's region/books.
-interface ScopeDealer { region?: string; salesperson?: string; salespersons?: string[] }
+interface ScopeDealer { region?: string; salesperson?: string; salespersons?: string[]; inScheme?: boolean }
 const dealerBooks = (d: ScopeDealer): string[] => (d.salespersons?.length ? d.salespersons : d.salesperson ? [d.salesperson] : []);
 
 export const isSales = (u?: ScopeUser): boolean => u?.userType === 'sales';
@@ -28,13 +28,15 @@ export const salesUserFilter = (u?: ScopeUser): Record<string, unknown> => {
   if (u!.salesRegions?.length) or.push({ region: { $in: u!.salesRegions } });
   // A dealer matches a book if ANY of its salespeople is in the rep's books.
   if (u!.salesBooks?.length) or.push({ salespersons: { $in: u!.salesBooks } }, { salesperson: { $in: u!.salesBooks } });
-  return or.length ? { $or: or } : { _id: null };
+  // Sales never see redeem-only (out-of-scheme) dealers — only their scheme book.
+  return or.length ? { inScheme: { $ne: false }, $or: or } : { _id: null };
 };
 
 // Is a single dealer inside a sales user's scope? Used to guard writes and
 // single-record reads. Non-sales users are unrestricted (true).
 export const dealerInScope = (u: ScopeUser | undefined, dealer: ScopeDealer): boolean => {
   if (!isSales(u)) return true;
+  if (dealer.inScheme === false) return false; // redeem-only dealers are never in a rep's scope
   const inRegion = !!u!.salesRegions?.length && !!dealer.region && u!.salesRegions.includes(dealer.region);
   const inBook = !!u!.salesBooks?.length && dealerBooks(dealer).some((s) => u!.salesBooks!.includes(s));
   return inRegion || inBook;
