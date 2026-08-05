@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { formatNumber, formatRupees, formatDate } from '../../lib/format';
-import { type Tier } from '../../lib/tier';
+import { tierTargetLines, type Tier } from '../../lib/tier';
+import BillItems, { type LineItem } from '../../components/BillItems';
 
 interface RecentBill {
   _id: string;
@@ -12,6 +13,7 @@ interface RecentBill {
   source?: string;
   locked?: boolean;
   excluded?: boolean;
+  lineItems?: LineItem[];
 }
 
 interface Summary {
@@ -46,6 +48,7 @@ const dm = (iso: string | null): string => {
 export default function DealerCard({ userId }: { userId: string }) {
   const [data, setData] = useState<Summary | null>(null);
   const [error, setError] = useState('');
+  const [itemsOpen, setItemsOpen] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -94,11 +97,7 @@ export default function DealerCard({ userId }: { userId: string }) {
           <h4>{q.label} <span className={`dc-verdict ${verdict.cls}`}>{verdict.label}</span></h4>
           <div className="dc-bar-head">
             <b>{formatRupees(q.billed)}</b>
-            <span className="hint">
-              {q.nextReq != null && q.nextTier
-                ? `of ${formatRupees(q.nextReq)} for ${q.nextTier}`
-                : q.floor > 0 ? `of ${formatRupees(q.floor)} to hold ${id.tier}` : 'no target'}
-            </span>
+            <span className="hint">billed this quarter</span>
           </div>
           <div className="dc-bar">
             <div className={`dc-bar-fill ${verdict.cls}`} style={{ width: `${fillPct}%` }} />
@@ -106,12 +105,22 @@ export default function DealerCard({ userId }: { userId: string }) {
               <div className={`dc-bar-floor${heldFloor ? ' met' : ''}`} style={{ left: `${floorPct}%` }} title={`Hold ${id.tier}: ${formatRupees(q.floor)}`} />
             )}
           </div>
-          <div className="dc-bar-legend hint">
-            {id.inScheme
-              ? (id.tier !== 'NoTier'
-                  ? (heldFloor ? `Cleared the ${id.tier} hold line` : `Below the ${id.tier} hold line — ${formatRupees(Math.max(0, q.floor - q.billed))} short`)
-                  : 'No tier yet this quarter')
-              : 'Redeem-only — earns no points'}
+          <div className="dc-targets">
+            {!id.inScheme ? (
+              <div className="dc-trow hint">Redeem-only — earns no points</div>
+            ) : (() => {
+              const lines = tierTargetLines(id.tier, q.floor, q.nextTier, q.nextReq);
+              if (lines.length === 0) return <div className="dc-trow met"><span>Top tier — nothing above to reach</span></div>;
+              return lines.map((ln, i) => {
+                const met = q.billed >= ln.need;
+                return (
+                  <div className={`dc-trow${met ? ' met' : ''}`} key={i}>
+                    <span>{formatRupees(q.billed)} / {formatRupees(ln.need)} to {ln.verb} {ln.tier}</span>
+                    <span className="dc-tflag">{met ? '✓ cleared' : `${formatRupees(ln.need - q.billed)} short`}</span>
+                  </div>
+                );
+              });
+            })()}
           </div>
           <dl className="dc-dl dc-mini">
             <dt>Earned this quarter</dt><dd className="t-num">{formatNumber(q.earned)}</dd>
@@ -140,9 +149,19 @@ export default function DealerCard({ userId }: { userId: string }) {
         ) : (
           <table className="dc-bills">
             <tbody>
-              {recent.map((b) => (
-                <tr key={b._id}>
-                  <td className="t-mono">{b.billNumber}</td>
+              {recent.map((b) => {
+                const hasItems = (b.lineItems?.length ?? 0) > 0;
+                const open = itemsOpen === b._id;
+                return (
+                <Fragment key={b._id}>
+                <tr>
+                  <td className="t-mono">
+                    {hasItems && (
+                      <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Hide items' : 'Show items'} aria-expanded={open}
+                        onClick={() => setItemsOpen(open ? null : b._id)}>▸</button>
+                    )}
+                    {b.billNumber}
+                  </td>
                   <td className="hint">{formatDate(b.billDate)}</td>
                   <td className="t-num">{formatRupees(b.billAmount)}</td>
                   <td className="t-num">{b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
@@ -150,7 +169,12 @@ export default function DealerCard({ userId }: { userId: string }) {
                     ? <span className="src-tag busy">{b.locked ? 'synced · edited' : 'synced'}</span>
                     : <span className="src-tag">manual</span>}{b.excluded && <span className="src-tag excl">excluded</span>}</td>
                 </tr>
-              ))}
+                {open && hasItems && (
+                  <tr><td colSpan={5} style={{ padding: 0 }}><BillItems items={b.lineItems!} /></td></tr>
+                )}
+                </Fragment>
+                );
+              })}
             </tbody>
           </table>
         )}

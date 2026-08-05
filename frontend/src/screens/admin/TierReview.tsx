@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { TIER_ACCENT, type Tier } from '../../lib/tier';
+import SearchInput from '../../components/SearchInput';
+import DealerCard from './DealerCard';
 
 interface Change {
   userId: string;
@@ -41,6 +43,7 @@ export default function TierReview() {
   const [regionF, setRegionF] = useState('All');
   const [dirF, setDirF] = useState<'all' | 'up' | 'down' | 'new'>('all');
   const [q, setQ] = useState('');
+  const [dealerOpen, setDealerOpen] = useState<string | null>(null);
 
   const load = () => {
     setReview(null);
@@ -122,7 +125,7 @@ export default function TierReview() {
             <button className={`fchip${dirF === 'up' ? ' on' : ''}`} onClick={() => setDirF('up')}>▲ Promoted <b className="fc-n">{review.counts.up}</b></button>
             <button className={`fchip${dirF === 'down' ? ' on' : ''}`} onClick={() => setDirF('down')}>▼ Dropped <b className="fc-n">{review.counts.down}</b></button>
             <button className={`fchip${dirF === 'new' ? ' on' : ''}`} onClick={() => setDirF('new')}>New <b className="fc-n">{review.counts.newEntrants}</b></button>
-            <input className="input" style={{ width: 'auto', flex: '1 1 160px', maxWidth: 240 }} placeholder="Search dealer…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <SearchInput value={q} onChange={setQ} placeholder="Search dealer…" style={{ width: 'auto', flex: '1 1 160px', maxWidth: 240 }} />
             {(regionF !== 'All' || dirF !== 'all' || q) && (
               <button className="fchip" onClick={() => { setRegionF('All'); setDirF('all'); setQ(''); }}>Clear</button>
             )}
@@ -164,10 +167,11 @@ export default function TierReview() {
                     <tr><td colSpan={7} className="hint" style={{ textAlign: 'center', padding: 30 }}>No dealers match these filters.</td></tr>
                   )}
                   {visible.map((c) => (
-                    <tr key={c.userId}>
+                    <Fragment key={c.userId}>
+                    <tr>
                       <td><input type="checkbox" className="trow-check" checked={!!checked[c.userId]}
                         onChange={(e) => setChecked((m) => ({ ...m, [c.userId]: e.target.checked }))} /></td>
-                      <td className="t-strong">{c.partyName}</td>
+                      <td className="t-strong"><button className="linklike" onClick={() => setDealerOpen(dealerOpen === c.userId ? null : c.userId)}>{c.partyName}</button></td>
                       <td className="hint">{c.region || '—'}</td>
                       <td className="t-num">{fmtL(c.billed)}</td>
                       <td style={{ textAlign: 'right' }}><TierChip t={c.currentTier} /></td>
@@ -179,6 +183,10 @@ export default function TierReview() {
                         </span>
                       </td>
                     </tr>
+                    {dealerOpen === c.userId && (
+                      <tr className="row-detail"><td colSpan={7}><DealerCard userId={c.userId} /></td></tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

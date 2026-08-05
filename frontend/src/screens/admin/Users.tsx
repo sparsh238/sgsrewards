@@ -6,6 +6,7 @@ import { formatNumber } from '../../lib/format';
 import { TIER_ORDER, type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
 import DealerCard from './DealerCard';
+import SearchInput from '../../components/SearchInput';
 
 interface UserRow {
   _id: string;
@@ -119,7 +120,7 @@ export default function Users() {
               {regions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
-          <input className="input" placeholder="Search name / phone / GSTIN…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <SearchInput value={query} onChange={setQuery} placeholder="Search name / phone / GSTIN…" />
           {isSuper && <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setAddOpen(true)}>+ Add {tab === 'team' ? 'staff' : 'dealer'}</button>}
         </div>
       </div>

@@ -53,7 +53,7 @@ const getOverview = async (req: Request, res: Response) => {
       const region = u.region || 'Unassigned';
       (byRegion[region] ??= { region, dealers: [], billed: 0 });
       byRegion[region].dealers.push({
-        partyName: u.partyName, tier: u.tier, billed, floor, nextTier, nextReq, status,
+        _id: u._id, partyName: u.partyName, tier: u.tier, billed, floor, nextTier, nextReq, status,
         progress, noBills: billed <= 0,
       });
       byRegion[region].billed += billed;

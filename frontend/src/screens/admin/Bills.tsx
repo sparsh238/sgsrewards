@@ -1,11 +1,12 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useToast } from '../../lib/toast';
-import { formatDate, formatNumber, formatRupees } from '../../lib/format';
+import { formatDate, formatNumber } from '../../lib/format';
 import { type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
-
-interface LineItem { item: string; group: string; brand: string; category: string; qty: number; value: number }
+import SearchInput from '../../components/SearchInput';
+import DealerCard from './DealerCard';
+import BillItems, { type LineItem } from '../../components/BillItems';
 
 // "2026-07" -> "Jul 2026" for the month filter.
 const periodLabel = (p: string) => {
@@ -59,6 +60,7 @@ export default function Bills() {
   const [search, setSearch] = useState('');
   const [debounced, setDebounced] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [dealerOpen, setDealerOpen] = useState<string | null>(null);
 
   // Reset to page 1 in the SAME update as any filter change (below and in the
   // select handlers) — a separate reset-effect would let load() fire once with a
@@ -119,7 +121,7 @@ export default function Bills() {
       <div className="admin-head">
         <div><h1>Bills</h1><p className="page-sub">Recording a bill credits points by the dealer's tier rate.</p></div>
         <div className="admin-toolbar">
-          <input className="input" placeholder="Search bill / dealer…" value={search} onChange={(e) => setSearch(e.target.value)} />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search bill / dealer…" />
           <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setModal({ mode: 'add' })}>
             + Add bill
           </button>
@@ -170,7 +172,14 @@ export default function Bills() {
                         )}
                         {b.billNumber}
                       </td>
-                      <td><div className="t-strong">{b.userId?.partyName ?? '—'}</div><div className="hint">{b.userId?.phoneNumber ?? ''}</div></td>
+                      <td>
+                        <div className="t-strong">
+                          {b.userId?._id
+                            ? <button className="linklike" onClick={() => setDealerOpen(dealerOpen === b._id ? null : b._id)}>{b.userId?.partyName ?? '—'}</button>
+                            : (b.userId?.partyName ?? '—')}
+                        </div>
+                        <div className="hint">{b.userId?.phoneNumber ?? ''}</div>
+                      </td>
                       <td className="hint">{b.userId?.region || '—'}</td>
                       <td className="hint">{b.tierAtBill || b.userId?.tier || '—'}</td>
                       <td className="t-num">₹{formatNumber(b.billAmount)}</td>
@@ -190,27 +199,14 @@ export default function Bills() {
                         </div>
                       </td>
                     </tr>
+                    {dealerOpen === b._id && b.userId?._id && (
+                      <tr className="row-detail">
+                        <td colSpan={9}><DealerCard userId={b.userId._id} /></td>
+                      </tr>
+                    )}
                     {open && hasItems && (
                       <tr className="row-detail">
-                        <td colSpan={9}>
-                          <div className="bill-items">
-                            <table className="bi-table">
-                              <thead><tr><th>Item</th><th>Group</th><th>Brand</th><th>Cat</th><th className="t-num">Qty</th><th className="t-num">Value</th></tr></thead>
-                              <tbody>
-                                {b.lineItems!.map((li, i) => (
-                                  <tr key={i}>
-                                    <td className="t-mono">{li.item || '—'}</td>
-                                    <td>{li.group || '—'}</td>
-                                    <td className="hint">{li.brand || '—'}</td>
-                                    <td className="hint">{li.category || '—'}</td>
-                                    <td className="t-num">{li.qty}</td>
-                                    <td className="t-num">{formatRupees(li.value)}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </td>
+                        <td colSpan={9}><BillItems items={b.lineItems!} /></td>
                       </tr>
                     )}
                     </Fragment>

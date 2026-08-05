@@ -158,6 +158,23 @@ export function billedThisQuarter(bills: Bill[], now = new Date()): number {
   }, 0);
 }
 
+// The threshold line(s) an admin cares about for a dealer this quarter, in the
+// verbose "billed / need to <verb> <Tier>" form. Order: maintain (hold current
+// tier) then upgrade (reach next). Edge cases: top tier → maintain only; NoTier →
+// a single "reach Basic" line (nothing to maintain yet). Admin surfaces only.
+export interface TierTargetLine { verb: 'maintain' | 'upgrade to' | 'reach'; tier: Tier; need: number }
+export function tierTargetLines(
+  tier: Tier,
+  floor: number,
+  nextTier: Tier | null,
+  nextReq: number | null,
+): TierTargetLine[] {
+  const lines: TierTargetLine[] = [];
+  if (tier !== 'NoTier' && floor > 0) lines.push({ verb: 'maintain', tier, need: floor });
+  if (nextTier && nextReq != null) lines.push({ verb: tier === 'NoTier' ? 'reach' : 'upgrade to', tier: nextTier, need: nextReq });
+  return lines;
+}
+
 export function nextTierOf(tier: Tier): Tier | null {
   const i = TIER_ORDER.indexOf(tier);
   return i >= 0 && i < TIER_ORDER.length - 1 ? TIER_ORDER[i + 1] : null;

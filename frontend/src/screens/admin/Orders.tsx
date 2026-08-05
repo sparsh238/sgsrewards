@@ -1,12 +1,14 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useToast } from '../../lib/toast';
 import { formatDate, formatNumber } from '../../lib/format';
+import SearchInput from '../../components/SearchInput';
+import DealerCard from './DealerCard';
 
 interface AdminOrder {
   _id: string;
   orderIdAlias: string;
-  userId: { partyName?: string; phoneNumber?: string } | null;
+  userId: { _id?: string; partyName?: string; phoneNumber?: string } | null;
   totalValue: number;
   orderDate: string;
   status: 'Pending' | 'Completed' | 'Cancelled';
@@ -20,6 +22,7 @@ export default function Orders() {
   const [orders, setOrders] = useState<AdminOrder[] | null>(null);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | AdminOrder['status']>('All');
+  const [dealerOpen, setDealerOpen] = useState<string | null>(null);
   const [error, setError] = useState('');
   const { toast, toastError } = useToast();
 
@@ -58,7 +61,7 @@ export default function Orders() {
       <div className="admin-head">
         <div><h1>Orders</h1><p className="page-sub">Update fulfilment status. Cancelling refunds the dealer's points.</p></div>
         <div className="admin-toolbar">
-          <input className="input" placeholder="Search order / dealer / phone…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <SearchInput value={query} onChange={setQuery} placeholder="Search order / dealer / phone…" />
         </div>
       </div>
 
@@ -82,9 +85,17 @@ export default function Orders() {
             </thead>
             <tbody>
               {visible.map((o) => (
-                <tr key={o._id}>
+                <Fragment key={o._id}>
+                <tr>
                   <td className="t-strong t-num">{o.orderIdAlias}</td>
-                  <td><div className="t-strong">{o.userId?.partyName ?? '—'}</div><div className="hint">{o.userId?.phoneNumber ?? ''}</div></td>
+                  <td>
+                    <div className="t-strong">
+                      {o.userId?._id
+                        ? <button className="linklike" onClick={() => setDealerOpen(dealerOpen === o._id ? null : o._id)}>{o.userId?.partyName ?? '—'}</button>
+                        : (o.userId?.partyName ?? '—')}
+                    </div>
+                    <div className="hint">{o.userId?.phoneNumber ?? ''}</div>
+                  </td>
                   <td>
                     {o.items[0]?.itemId?.name ?? 'items'}
                     {o.items.length > 1 && <span className="hint"> +{o.items.length - 1}</span>}
@@ -102,6 +113,10 @@ export default function Orders() {
                     </select>
                   </td>
                 </tr>
+                {dealerOpen === o._id && o.userId?._id && (
+                  <tr className="row-detail"><td colSpan={6}><DealerCard userId={o.userId._id} /></td></tr>
+                )}
+                </Fragment>
               ))}
               {visible.length === 0 && (
                 <tr><td colSpan={6} className="hint" style={{ textAlign: 'center', padding: 30 }}>No orders match.</td></tr>

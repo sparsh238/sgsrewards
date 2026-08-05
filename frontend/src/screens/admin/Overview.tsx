@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { formatNumber } from '../../lib/format';
-import { TIER_ACCENT, type Tier } from '../../lib/tier';
+import { TIER_ACCENT, tierTargetLines, type Tier } from '../../lib/tier';
+import SearchInput from '../../components/SearchInput';
+import DealerCard from './DealerCard';
 
 type Status = 'promoting' | 'holds' | 'atRisk';
 interface DealerRow {
+  _id: string;
   partyName: string; tier: Tier; billed: number;
   floor: number; nextTier: Tier | null; nextReq: number | null;
   status: Status; progress: number; noBills: boolean;
@@ -28,6 +31,7 @@ export default function OverviewScreen() {
   // Verdict filter. 'holds' is the MAINTAIN bucket: cleared the current-tier floor
   // but not yet the next-tier line. null = show everyone.
   const [statusF, setStatusF] = useState<Status | null>(null);
+  const [expandedDealer, setExpandedDealer] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
@@ -87,9 +91,13 @@ export default function OverviewScreen() {
     // below it. Green tick = cleared (safe to hold); grey = still short (drop risk).
     const floorPct = d.nextReq && d.floor > 0 && d.floor < d.nextReq ? (d.floor / d.nextReq) * 100 : null;
     const heldFloor = d.tier !== 'NoTier' && d.billed >= d.floor;
+    const open = expandedDealer === d._id;
+    const toggle = () => setExpandedDealer(open ? null : d._id);
     return (
-    <div className={`ov-drow${d.noBills ? ' ov-dorm' : ''}`}>
-      <div className="ov-dn"><div className="ov-dnn">{d.partyName}</div><div className="ov-dns" style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</div></div>
+    <>
+    <div className={`ov-drow ov-drow-click${d.noBills ? ' ov-dorm' : ''}${open ? ' open' : ''}`} role="button" tabIndex={0}
+      onClick={toggle} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); } }}>
+      <div className="ov-dn"><div className="ov-dnn"><span className={`row-caret${open ? ' open' : ''}`}>▸</span>{d.partyName}</div><div className="ov-dns" style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</div></div>
       <div className="ov-prog">
         <div className="ov-track">
           <div className="ov-fill" style={{ width: `${d.progress}%`, background: fillColor(d.status) }} />
@@ -99,12 +107,23 @@ export default function OverviewScreen() {
           )}
         </div>
         <div className="ov-pl">
-          <span>{fmtMoney(d.billed)}{d.nextTier ? ` / ${fmtMoney(d.nextReq ?? 0)} for ${d.nextTier}` : ' · top tier'}</span>
-          <span>{d.nextTier ? `${d.progress}%` : ''}</span>
+          {(() => {
+            const lines = tierTargetLines(d.tier, d.floor, d.nextTier, d.nextReq);
+            if (lines.length === 0) return <div className="ov-plrow"><span>{fmtMoney(d.billed)} billed · top tier</span></div>;
+            const target = d.nextReq ?? d.floor;
+            return lines.map((ln, i) => (
+              <div className="ov-plrow" key={i}>
+                <span>{fmtMoney(d.billed)} / {fmtMoney(ln.need)} to {ln.verb} {ln.tier}</span>
+                {ln.need === target && <span>{d.progress}%</span>}
+              </div>
+            ));
+          })()}
         </div>
       </div>
       {verdict(d)}
     </div>
+    {open && <div className="ov-drill" onClick={(e) => e.stopPropagation()}><DealerCard userId={d._id} /></div>}
+    </>
     );
   };
 
@@ -113,7 +132,7 @@ export default function OverviewScreen() {
       <div className="admin-head">
         <div><h1>Overview</h1><p className="page-sub">Welcome back, {auth.partyName ?? auth.username}.</p></div>
         <div className="admin-toolbar">
-          <input className="input" placeholder="Search dealer — expands their region…" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <SearchInput value={query} onChange={setQuery} placeholder="Search dealer — expands their region…" />
         </div>
       </div>
 
