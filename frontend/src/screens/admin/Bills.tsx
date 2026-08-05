@@ -193,10 +193,12 @@ export default function Bills() {
                       <td className="t-num" data-label="Points">{b.excluded ? <span className="pending" title="Disregarded — earns no points">+0</span> : b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
                       <td className="hint" data-label="Date">{formatDate(b.billDate)}</td>
                       <td data-label="Source">
+                        <div className="src-tags">
                         {busy
                           ? <span className="src-tag busy" title={b.locked ? 'Synced from Busy — you edited this, so the daily sync no longer touches it' : 'Synced from the daily Busy push'}>{b.locked ? 'synced · edited' : 'synced'}</span>
                           : <span className="src-tag">manual</span>}
                         {b.excluded && <span className="src-tag excl" title="Disregarded: no points, out of tier turnover">excluded</span>}
+                        </div>
                       </td>
                       {!isSales && (
                         <td className="cell-actions">
