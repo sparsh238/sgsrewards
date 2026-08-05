@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { formatNumber, formatRupees, formatDate } from '../../lib/format';
-import { tierTargetLines, type Tier } from '../../lib/tier';
+import { tierTargetLines, TIER_ACCENT, EARN_TIERS, type Tier } from '../../lib/tier';
 import BillItems, { type LineItem } from '../../components/BillItems';
+import Chevron from '../../components/Chevron';
 
 interface RecentBill {
   _id: string;
@@ -74,70 +75,103 @@ export default function DealerCard({ userId }: { userId: string }) {
   const contact = [id.firstName, id.lastName].filter(Boolean).join(' ');
   const verdict = VERDICT[q.status];
 
-  // Target bar: fill toward the next-tier requirement; the hold floor is a marker.
-  // NoTier / top-tier fall back to the floor so the bar still means something.
-  const target = q.nextReq ?? q.floor ?? 0;
-  const fillPct = target > 0 ? Math.min(100, Math.round((q.billed / target) * 100)) : 0;
-  const floorPct = target > 0 && q.floor > 0 && q.floor < target ? Math.round((q.floor / target) * 100) : null;
-  const heldFloor = id.tier !== 'NoTier' && q.billed >= q.floor;
+  // Tier is the spine: recolor the whole header to its accent + rank on the ladder.
+  const tierAccent = TIER_ACCENT[id.tier];
+  const earnIdx = (EARN_TIERS as readonly Tier[]).indexOf(id.tier);
+  const rankLabel = earnIdx >= 0 ? `tier ${earnIdx + 1} / ${EARN_TIERS.length}` : 'not enrolled';
+  const tierLabel = id.tier === 'NoTier' ? 'No tier' : id.tier;
+
+  // Hero rail: one shared 0→(highest threshold) scale so both the maintain notch
+  // and the upgrade end-cap are visible on the same bar.
+  const railLines = id.inScheme ? tierTargetLines(id.tier, q.floor, q.nextTier, q.nextReq) : [];
+  const railMax = Math.max(q.billed, ...railLines.map((l) => l.need), 1);
+  const railFill = Math.min(100, Math.round((q.billed / railMax) * 100));
 
   return (
-    <div className="dcard">
+    <div className="dcard" style={{ ['--tier' as string]: tierAccent }}>
+      {/* Header band — tier-led */}
+      <div className="dc-head">
+        <div className="dc-medal">
+          <div className="dc-medal-t">{tierLabel}</div>
+          <div className="dc-medal-r">{rankLabel}</div>
+        </div>
+        <div className="dc-id">
+          <div className="dc-name">{id.partyName}{!id.profileCompleted && <span className="pending dc-pend">profile pending</span>}</div>
+          <div className="dc-idmeta">
+            <span>{id.region || 'no area'}</span><span className="dc-dot" />
+            {id.gstin ? <span className="t-mono">{id.gstin}</span> : <span className="pending">no GST</span>}<span className="dc-dot" />
+            <span className="t-num">{id.phoneNumber || '—'}</span>
+            <span className={`scheme-chip ${id.inScheme ? 'in' : 'out'}`}>{id.inScheme ? 'in-scheme' : 'redeem-only'}</span>
+          </div>
+          <span className={`dc-verdict ${verdict.cls}`}>{verdict.label} · {q.label}</span>
+        </div>
+        <div className="dc-heronum">
+          <div className="dc-heronum-l">Points available</div>
+          <div className="dc-heronum-v t-num">{formatNumber(id.availablePoints)}</div>
+          <div className="dc-heronum-s t-num">{formatRupees(q.billed)} billed this quarter</div>
+        </div>
+      </div>
+
+      {/* Hero rail — the tier's progress, promoted */}
+      <div className="dc-rail">
+        {!id.inScheme ? (
+          <div className="dc-rail-none">Redeem-only dealer — bills earn no points, so there's no tier target.</div>
+        ) : railLines.length === 0 ? (
+          <div className="dc-rail-none">Top tier — nothing above to reach. Keep billing to hold {tierLabel}.</div>
+        ) : (
+          <>
+            <div className="dc-rail-top">
+              <span className="dc-rail-now t-num">{formatRupees(q.billed)} <small>billed toward {railLines[railLines.length - 1].tier}</small></span>
+              <span className="dc-rail-q">where {q.label} puts the tier</span>
+            </div>
+            <div className="dc-hbar">
+              <div className={`dc-hfill ${verdict.cls}`} style={{ width: `${railFill}%` }} />
+              {railLines.map((ln, i) => {
+                const pct = Math.min(100, Math.round((ln.need / railMax) * 100));
+                const met = q.billed >= ln.need;
+                return (
+                  <div className={`dc-hmark${met ? ' met' : ''}`} key={i} style={{ left: `${pct}%`, ['--m' as string]: TIER_ACCENT[ln.tier] }}>
+                    <span className="dc-hmark-l">{formatRupees(ln.need)}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="dc-rail-legend">
+              {railLines.map((ln, i) => {
+                const met = q.billed >= ln.need;
+                return (
+                  <span className={`dc-leg${met ? ' met' : ''}`} key={i}>
+                    <span className="dc-leg-dot" style={{ background: TIER_ACCENT[ln.tier] }} />
+                    <b>{ln.verb} {ln.tier}</b>
+                    <span className="dc-leg-f">{met ? '✓ cleared' : `${formatRupees(ln.need - q.billed)} short`}</span>
+                  </span>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Supporting columns */}
       <div className="dcard-grid">
-        {/* Identity */}
         <section className="dc-sec">
           <h4>Contact</h4>
           <dl className="dc-dl">
             <dt>Name</dt><dd>{contact || <span className="hint">not set</span>}</dd>
-            <dt>Phone</dt><dd className="t-num">{id.phoneNumber}</dd>
-            <dt>GSTIN</dt><dd>{id.gstin ? <span className="t-mono">{id.gstin}</span> : <span className="pending">none</span>}</dd>
-            <dt>Area</dt><dd>{id.region || '—'}</dd>
             <dt>Birthday</dt><dd>{dm(id.dateOfBirth)}</dd>
             <dt>Anniversary</dt><dd>{dm(id.anniversaryDate)}</dd>
           </dl>
-          <div className="dc-tags">
-            <span className={`scheme-chip ${id.inScheme ? 'in' : 'out'}`}>{id.inScheme ? 'in-scheme' : 'redeem-only'}</span>
-            {!id.profileCompleted && <span className="pending">profile pending</span>}
-          </div>
         </section>
 
-        {/* This quarter */}
         <section className="dc-sec">
-          <h4>{q.label} <span className={`dc-verdict ${verdict.cls}`}>{verdict.label}</span></h4>
-          <div className="dc-bar-head">
-            <b>{formatRupees(q.billed)}</b>
-            <span className="hint">billed this quarter</span>
-          </div>
-          <div className="dc-bar">
-            <div className={`dc-bar-fill ${verdict.cls}`} style={{ width: `${fillPct}%` }} />
-            {floorPct != null && (
-              <div className={`dc-bar-floor${heldFloor ? ' met' : ''}`} style={{ left: `${floorPct}%` }} title={`Hold ${id.tier}: ${formatRupees(q.floor)}`} />
-            )}
-          </div>
-          <div className="dc-targets">
-            {!id.inScheme ? (
-              <div className="dc-trow hint">Redeem-only — earns no points</div>
-            ) : (() => {
-              const lines = tierTargetLines(id.tier, q.floor, q.nextTier, q.nextReq);
-              if (lines.length === 0) return <div className="dc-trow met"><span>Top tier — nothing above to reach</span></div>;
-              return lines.map((ln, i) => {
-                const met = q.billed >= ln.need;
-                return (
-                  <div className={`dc-trow${met ? ' met' : ''}`} key={i}>
-                    <span>{formatRupees(q.billed)} / {formatRupees(ln.need)} to {ln.verb} {ln.tier}</span>
-                    <span className="dc-tflag">{met ? '✓ cleared' : `${formatRupees(ln.need - q.billed)} short`}</span>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-          <dl className="dc-dl dc-mini">
-            <dt>Earned this quarter</dt><dd className="t-num">{formatNumber(q.earned)}</dd>
-            <dt>Bills this quarter</dt><dd className="t-num">{formatNumber(q.count)}</dd>
+          <h4>{q.label}</h4>
+          <dl className="dc-dl">
+            <dt>Billed</dt><dd className="t-num">{formatRupees(q.billed)}</dd>
+            <dt>Points earned</dt><dd className="t-num">{formatNumber(q.earned)}</dd>
+            <dt>Bills</dt><dd className="t-num">{formatNumber(q.count)}</dd>
           </dl>
         </section>
 
-        {/* Lifetime */}
         <section className="dc-sec">
           <h4>Lifetime</h4>
           <dl className="dc-dl">
@@ -164,7 +198,7 @@ export default function DealerCard({ userId }: { userId: string }) {
                 <div className="dc-litem" key={b._id}>
                   <div className={`dc-lrow${hasItems ? ' tappable' : ''}`} onClick={hasItems ? () => setItemsOpen(open ? null : b._id) : undefined}>
                     <div className="dc-lmain">
-                      <span className="t-mono">{hasItems && <span className={`row-caret${open ? ' open' : ''}`}>▸</span>}{b.billNumber}</span>
+                      <span className="t-mono">{hasItems && <Chevron open={open} sm />}{b.billNumber}</span>
                       <span className="hint">{formatDate(b.billDate)}</span>
                     </div>
                     <div className="dc-lmeta">

@@ -7,6 +7,7 @@ import { TIER_ORDER, type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
 import DealerCard from './DealerCard';
 import SearchInput from '../../components/SearchInput';
+import Chevron from '../../components/Chevron';
 
 interface UserRow {
   _id: string;
@@ -200,8 +201,8 @@ export default function Users() {
                   <td data-label={isDealer ? 'Dealer' : 'Staff'}>
                     <div className="t-strong">
                       {isDealer && (
-                        <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open}
-                          onClick={() => setExpanded(open ? null : u._id)}>▸</button>
+                        <button className="caret-btn" aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open}
+                          onClick={() => setExpanded(open ? null : u._id)}><Chevron open={open} /></button>
                       )}
                       {isDealer
                         ? <button className="linklike" onClick={() => setExpanded(open ? null : u._id)}>{u.partyName}</button>

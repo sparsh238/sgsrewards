@@ -4,6 +4,7 @@ import { useAuth } from '../../lib/auth';
 import { formatNumber } from '../../lib/format';
 import { TIER_ACCENT, TIER_ORDER, tierTargetLines, type Tier } from '../../lib/tier';
 import SearchInput from '../../components/SearchInput';
+import Chevron from '../../components/Chevron';
 import DealerCard from './DealerCard';
 
 type Status = 'promoting' | 'holds' | 'atRisk';
@@ -110,7 +111,7 @@ export default function OverviewScreen() {
     <>
     <div className={`ov-drow ov-drow-click${d.noBills ? ' ov-dorm' : ''}${isOpenRow ? ' open' : ''}`} role="button" tabIndex={0}
       onClick={tog} onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tog(); } }}>
-      <div className="ov-dn"><div className="ov-dnn"><span className={`row-caret${isOpenRow ? ' open' : ''}`}>▸</span>{d.partyName}</div><div className="ov-dns" style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</div></div>
+      <div className="ov-dn"><div className="ov-dnn"><Chevron open={isOpenRow} />{d.partyName}</div><div className="ov-dns" style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</div></div>
       {d.noBills ? (
         <div className="ov-prog ov-dormprog">
           <span className="ov-zero">₹0</span>
@@ -157,10 +158,10 @@ export default function OverviewScreen() {
       <>
         {shown.map((d) => <DealerLine d={d} key={d._id} />)}
         {!showAll && (
-          <button className="ov-more" onClick={() => toggleGroup(key)}>▸ Show {dealers.length - GROUP_CAP} more</button>
+          <button className="ov-more" onClick={() => toggleGroup(key)}><Chevron sm /> Show {dealers.length - GROUP_CAP} more</button>
         )}
         {groupOpen(key) && dealers.length > GROUP_CAP && (
-          <button className="ov-more" onClick={() => toggleGroup(key)}>▾ Show fewer</button>
+          <button className="ov-more" onClick={() => toggleGroup(key)}><Chevron sm open /> Show fewer</button>
         )}
       </>
     );
@@ -240,7 +241,7 @@ export default function OverviewScreen() {
             return (
               <div className="ov-region" key={r.region}>
                 <button className={`ov-rh${isOpen(r.region) ? ' open' : ''}`} onClick={() => toggle(r.region)}>
-                  <span className="ov-chev">{isOpen(r.region) ? '▾' : '▸'}</span>
+                  <Chevron open={isOpen(r.region)} />
                   <span className="ov-rn">{r.region}{NEW_REGIONS.test(r.region) && <span className="ov-newtag">NEW territory</span>}</span>
                   <span className="ov-rmeta">
                     <span>{r.count} dealer{r.count === 1 ? '' : 's'}</span>
@@ -270,11 +271,11 @@ export default function OverviewScreen() {
                         showOT ? (
                           <>
                             <div className="ov-grp ok">— On track · <b>{onTrack.length}</b> · {promoting.length} promoting, {holds.length} holding
-                              <button className="ov-grp-collapse" onClick={() => toggleGroup(otKey)}>▾ hide</button></div>
+                              <button className="ov-grp-collapse" onClick={() => toggleGroup(otKey)}><Chevron sm open /> hide</button></div>
                             <Group region={r.region} gkey="onTrack" dealers={onTrack} />
                           </>
                         ) : (
-                          <button className="ov-collapsed" onClick={() => toggleGroup(otKey)}>▸ Show <b>{onTrack.length} on track</b> — {promoting.length} promoting, {holds.length} holding</button>
+                          <button className="ov-collapsed" onClick={() => toggleGroup(otKey)}><Chevron sm /> Show <b>{onTrack.length} on track</b> — {promoting.length} promoting, {holds.length} holding</button>
                         )
                       ) : (
                         <Group region={r.region} gkey="onTrack" dealers={onTrack} />

@@ -6,6 +6,7 @@ import { formatDate, formatNumber } from '../../lib/format';
 import { type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
 import SearchInput from '../../components/SearchInput';
+import Chevron from '../../components/Chevron';
 import DealerCard from './DealerCard';
 import BillItems, { type LineItem } from '../../components/BillItems';
 
@@ -172,8 +173,8 @@ export default function Bills() {
                     <tr className={b.excluded ? 'bill-excluded' : ''}>
                       <td className="t-strong t-mono" data-label="Bill #">
                         {hasItems && (
-                          <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Hide items' : 'Show items'} aria-expanded={open}
-                            onClick={() => setExpanded(open ? null : b._id)}>▸</button>
+                          <button className="caret-btn" aria-label={open ? 'Hide items' : 'Show items'} aria-expanded={open}
+                            onClick={() => setExpanded(open ? null : b._id)}><Chevron open={open} /></button>
                         )}
                         {b.billNumber}
                       </td>
