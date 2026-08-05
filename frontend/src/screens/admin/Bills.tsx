@@ -7,6 +7,7 @@ import { type Tier } from '../../lib/tier';
 import Modal from '../../components/Modal';
 import SearchInput from '../../components/SearchInput';
 import Chevron from '../../components/Chevron';
+import DealerPicker from '../../components/DealerPicker';
 import DealerCard from './DealerCard';
 import BillItems, { type LineItem } from '../../components/BillItems';
 
@@ -293,11 +294,8 @@ function BillModal({ mode, bill, dealers, conv, onClose, onSaved }: {
     <Modal title={mode === 'add' ? 'Add bill' : `Edit bill #${bill?.billNumber}`} onClose={onClose}>
       {mode === 'add' ? (
         <div className="field">
-          <label htmlFor="dealer">Dealer</label>
-          <select id="dealer" className="input" value={dealerId} onChange={(e) => setDealerId(e.target.value)}>
-            <option value="">Select a dealer…</option>
-            {dealers.map((d) => <option key={d._id} value={d._id}>{d.partyName} ({d.username}) · {d.tier}</option>)}
-          </select>
+          <label>Dealer</label>
+          <DealerPicker dealers={dealers} value={dealerId} onChange={setDealerId} autoFocus />
         </div>
       ) : (
         <>
