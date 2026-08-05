@@ -110,7 +110,7 @@ export default function Users() {
     <>
       <div className="admin-head">
         <div>
-          <h1>Dealers</h1>
+          <h1>{auth.userType === 'sales' ? 'Dealers' : 'Users'}</h1>
           <p className="page-sub">Dealer accounts, keyed by phone &amp; GSTIN. Staff live under Team.</p>
         </div>
         <div className="admin-toolbar">

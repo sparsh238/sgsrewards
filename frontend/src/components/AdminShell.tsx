@@ -30,7 +30,7 @@ export default function AdminShell() {
         <div className="admin-brand">SGS</div>
         <div className="admin-role">{roleLabel}</div>
         {link(base, 'Overview')}
-        {link(`${base}/users`, 'Dealers')}
+        {link(`${base}/users`, isSales ? 'Dealers' : 'Users')}
         {link(`${base}/orders`, 'Orders')}
         {link(`${base}/bills`, 'Bills')}
         {!isSales && link(`${base}/items`, 'Rewards')}

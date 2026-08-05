@@ -30,6 +30,7 @@ const OVERRIDE = {
   'S R Electronics & Appliances (Jaipur)': ['Ashok'],
   'S.r. Electronics (Jaipur)': ['Ashok'],
   'The Choice Palace (Jaipur)': ['Ashok'],
+  'Shree Govindam Distributors (Jaipur)': ['Ashok'],
   'S S Electronics (Jaipur)': ['BP'],
 };
 const norm = (g) => String(g || '').toUpperCase().trim();

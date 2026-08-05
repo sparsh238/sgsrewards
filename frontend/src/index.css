@@ -2021,3 +2021,27 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .ov-more { display:block; width:100%; text-align:left; background:none; border:none; border-top:1px solid #1b212c;
   padding:9px 15px; color:var(--copper-hi,#E8C07A); font-size:12px; font-weight:600; cursor:pointer; }
 .ov-more:hover { background:#191f2a; }
+
+/* ---- Admin/sales mobile pass (≤720px): most-used surfaces ---- */
+@media (max-width: 720px) {
+  .admin-toolbar { width: 100%; }
+  .search-wrap { width: 100%; }
+  .kpi-row, .kpi-row-5 { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi .k-val { font-size: 20px; }
+  .chip-row { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .chip-row .fchip { flex: 0 0 auto; }
+  /* Overview dealer rows stack: name, then bar, then verdict on its own line */
+  .ov-drow { flex-wrap: wrap; gap: 6px 12px; padding: 11px 14px; }
+  .ov-dn { flex: 1 1 100%; min-width: 0; }
+  .ov-prog, .ov-dormprog { flex: 1 1 100%; min-width: 0; }
+  .ov-drow .risk { margin-left: auto; }
+  .ov-rmeta { gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  .ov-focus-cards { grid-template-columns: 1fr; }
+  .ov-fcard { border-left: none; border-top: 1px solid var(--hairline); }
+  .ov-fcard:first-child { border-top: none; }
+  /* Dealer drill-down card: single column, tighter */
+  .dcard-grid { grid-template-columns: 1fr; gap: 16px; }
+  .dc-bills, .bi-table { font-size: 11.5px; }
+  /* Tables stay scrollable (overflow-x on .table-wrap); nudge density down */
+  table.data th, table.data td { padding: 10px 12px; }
+}
