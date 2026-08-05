@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, type ReactNode } from 'react';
 import { clearSession } from './api';
 
-export type UserType = 'customer' | 'admin' | 'superadmin';
+export type UserType = 'customer' | 'admin' | 'superadmin' | 'sales';
 
 interface AuthState {
   token: string | null;
@@ -10,6 +10,8 @@ interface AuthState {
   partyName: string | null;
   // false = must set a PIN (dealer) / password (staff) before using the app.
   isPasswordReset: boolean;
+  // Sales managers are read-only; used to soften the UI (backend still enforces).
+  salesReadOnly: boolean;
 }
 
 interface AuthContextValue {
@@ -27,6 +29,7 @@ const readStored = (): AuthState => ({
   partyName: localStorage.getItem('partyName'),
   // Absent (older sessions) is treated as done, so we never trap an existing login.
   isPasswordReset: localStorage.getItem('isPasswordReset') !== 'false',
+  salesReadOnly: localStorage.getItem('salesReadOnly') === 'true',
 });
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -40,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('userType', userType);
     localStorage.setItem('partyName', partyName);
     localStorage.setItem('isPasswordReset', String(isPasswordReset));
-    setAuth({ token, username, userType, partyName, isPasswordReset });
+    setAuth({ token, username, userType, partyName, isPasswordReset, salesReadOnly: localStorage.getItem('salesReadOnly') === 'true' });
   };
 
   const markSetupDone = () => {
@@ -51,7 +54,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     clearSession();
     localStorage.removeItem('isPasswordReset');
-    setAuth({ token: null, username: null, userType: null, partyName: null, isPasswordReset: true });
+    localStorage.removeItem('salesReadOnly');
+    setAuth({ token: null, username: null, userType: null, partyName: null, isPasswordReset: true, salesReadOnly: false });
   };
 
   return (
@@ -72,6 +76,7 @@ export function homeForRole(userType: UserType | null): string {
   switch (userType) {
     case 'admin': return '/admin';
     case 'superadmin': return '/superadmin';
+    case 'sales': return '/sales';
     case 'customer': return '/home';
     default: return '/';
   }

@@ -38,6 +38,16 @@ if (!LOY || !BI) { console.error('Missing MONGO_URI or BI_MONGO_URI'); process.e
 const ELEC = ['HA', 'AC', 'AV', 'Deep Freezer', 'Mattress', 'Cooler', 'Chimney', 'Geyser', 'IT', 'Accessory'];
 const GST_RX = /^\d{2}[A-Z0-9]{13}$/;
 
+// Loyalty-side dealer merges: same shop billing under two GST ledgers, credited to
+// ONE loyalty account. Kept HERE (not in the BI pipeline) so the BI dashboards are
+// unaffected. Keyed on GSTIN, so ANY future turnover under the absorbed GSTIN is
+// always folded in — regardless of ledger-name spelling. left = absorbed GSTIN,
+// right = surviving loyalty account's GSTIN.
+const GST_MERGE = {
+  '08AGHPJ6305J1ZC': '08AABHH9696G1ZS', // V&V Associates (SM) -> Vikash Electronics (SM)
+};
+const mergeGst = (g) => (g && GST_MERGE[g]) || g;
+
 // Current fiscal quarter as YYYY-MM list. Indian FY (Apr–Mar) is shifted by exactly
 // one quarter, so its month groupings match calendar quarters: start = floor(m/3)*3.
 function currentQuarterPeriods(now = new Date()) {
@@ -76,7 +86,7 @@ const pointsForBill = (amount, tier, conv) => {
   // gstin -> [ {vch, period, cd, date, items} ]
   const invByGst = new Map();
   for (const a of agg) {
-    const g = dealerGst.get(a._id.dealer); if (!g) continue;
+    const g = mergeGst(dealerGst.get(a._id.dealer)); if (!g) continue;
     const items = (a.items || []).map((it) => ({
       item: it.item || '', group: it.group || '', brand: it.brand || '', category: it.category || '',
       qty: Number(it.qty) || 0, value: Math.round(Number(it.value) || 0),

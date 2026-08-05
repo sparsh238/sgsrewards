@@ -1664,22 +1664,29 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .form-grid .full { grid-column: 1 / -1; }
 
+/* Desktop: top bar / drawer scrim are hidden; sidebar is the fixed column. */
+.admin-topbar, .admin-scrim { display: none; }
+
 @media (max-width: 720px) {
   .admin-layout { grid-template-columns: 1fr; }
-  .admin-sidebar {
-    position: static;
-    height: auto;
-    flex-direction: row;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 4px;
-    padding: 10px;
+  .admin-topbar {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: var(--nav-bg); border-bottom: 1px solid var(--hairline);
+    position: sticky; top: 0; z-index: 41;
   }
-  .admin-brand, .admin-role { padding: 6px 10px; }
-  .nav-spacer { display: none; }
+  .admin-burger { background: none; border: none; color: var(--ink); font-size: 20px; line-height: 1; cursor: pointer; padding: 2px 4px; }
+  /* Sidebar becomes an off-canvas drawer, slid in when nav-open. */
+  .admin-sidebar {
+    position: fixed; top: 0; left: 0; z-index: 43; height: 100dvh; width: 260px;
+    transform: translateX(-100%); transition: transform 0.22s ease;
+    box-shadow: 8px 0 40px -12px rgba(0,0,0,.7);
+  }
+  .admin-layout.nav-open .admin-sidebar { transform: translateX(0); }
+  .admin-scrim { display: block; position: fixed; inset: 0; z-index: 42; background: rgba(0,0,0,.5); border: none; }
   .admin-main { padding: 18px 16px 48px; }
   .form-grid { grid-template-columns: 1fr; }
 }
+@media (prefers-reduced-motion: reduce) { .admin-sidebar { transition: none; } }
 
 /* ---- First-login profile gate ---- */
 .pg-overlay {
@@ -1963,3 +1970,54 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .ov-drow.open { background: rgba(232, 192, 122, 0.05); }
 .ov-dnn .row-caret { margin-right: 6px; }
 .ov-drill { border-bottom: 1px solid #1b212c; background: rgba(255, 255, 255, 0.012); }
+
+/* ---- Overview v2: dormant category, focus strip, grouped regions ---- */
+:root { --dorm:#E7B24A; --dorm-deep:#8a6a1f; --dorm-soft:rgba(231,178,74,.12); }
+.kpi-row-5 { grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); }
+.kpi-btn.okk .k-val { color:#5BD6A0; }
+.kpi-btn.riskk .k-val { color:#E07A7A; }
+.kpi-btn.dormk .k-val { color:var(--dorm); }
+.kpi-btn.dormk { border-color:var(--dorm-deep); background:linear-gradient(180deg,var(--dorm-soft),transparent); }
+.kpi-btn.dormk.on { border-color:var(--dorm); box-shadow:inset 0 0 0 1px var(--dorm); }
+.fchip.dorm b { color:var(--dorm); }
+.fchip.dorm.on { border-color:var(--dorm); box-shadow:inset 0 0 0 1px var(--dorm); }
+.risk.dorm { color:var(--dorm); border:1px solid var(--dorm-deep); background:var(--dorm-soft); }
+.pill-dorm { color:var(--dorm); border:1px solid var(--dorm-deep); background:var(--dorm-soft); border-radius:20px; padding:1px 8px; font-size:10.5px; font-weight:700; }
+
+/* focus strip */
+.ov-focus { border:1px solid var(--dorm-deep); border-radius:12px; overflow:hidden; margin:6px 0 18px;
+  background:linear-gradient(180deg,var(--dorm-soft),transparent); }
+.ov-focus-h { display:flex; align-items:baseline; gap:10px; padding:11px 15px; border-bottom:1px solid var(--hairline); }
+.ov-focus-t { font-weight:800; font-size:13px; color:var(--dorm); text-transform:uppercase; letter-spacing:.05em; }
+.ov-focus-cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); }
+.ov-fcard { text-align:left; background:none; border:none; border-left:1px solid var(--hairline); padding:12px 14px; cursor:pointer; color:var(--ink); }
+.ov-fcard:first-child { border-left:none; }
+.ov-fcard:hover { background:rgba(255,255,255,.03); }
+.ov-fcard.on { background:var(--dorm-soft); }
+.ov-fn { font-weight:700; font-size:13px; }
+.ov-fr { font-size:11.5px; color:var(--muted); margin-top:1px; }
+.ov-fwhy { font-size:11.5px; margin-top:6px; font-weight:600; }
+.ov-fwhy.dorm { color:var(--dorm); }
+.ov-fwhy.risk { color:var(--danger); }
+
+/* dormant dealer row (no bar) */
+.ov-dormprog { flex:1; display:flex; align-items:baseline; gap:12px; min-width:120px; }
+.ov-zero { font-weight:800; color:var(--dorm); font-size:14px; }
+.ov-dormneed { color:var(--faint,#5a6474); font-size:12px; }
+.ov-drow.ov-dorm { background:linear-gradient(90deg,var(--dorm-soft),transparent 55%); opacity:1; }
+
+/* group sub-headers */
+.ov-grp { display:flex; align-items:center; gap:10px; padding:10px 15px 6px;
+  text-transform:uppercase; letter-spacing:.06em; font-size:10.5px; font-weight:800; color:var(--muted); }
+.ov-grp b { color:var(--ink); }
+.ov-grp.dorm { color:var(--dorm); background:var(--dorm-soft); border-left:3px solid var(--dorm); padding:9px 15px; }
+.ov-grp.risk { color:#E07A7A; }
+.ov-grp-note { margin-left:auto; text-transform:none; letter-spacing:0; color:var(--faint,#5a6474); font-weight:600; font-size:11px; }
+.ov-grp-collapse { margin-left:auto; background:none; border:none; color:var(--muted); cursor:pointer; font-size:11px; text-transform:none; letter-spacing:0; }
+.ov-collapsed { display:block; width:100%; text-align:left; background:rgba(255,255,255,.012); border:none; border-top:1px solid #1b212c;
+  padding:12px 15px; color:var(--muted); font-size:12.5px; cursor:pointer; }
+.ov-collapsed:hover { background:#191f2a; color:var(--ink); }
+.ov-collapsed b { color:var(--ink); }
+.ov-more { display:block; width:100%; text-align:left; background:none; border:none; border-top:1px solid #1b212c;
+  padding:9px 15px; color:var(--copper-hi,#E8C07A); font-size:12px; font-weight:600; cursor:pointer; }
+.ov-more:hover { background:#191f2a; }

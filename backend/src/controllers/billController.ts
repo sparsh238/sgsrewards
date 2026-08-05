@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import Bill from '../models/billModel';
 import User from '../models/userModel';
 import System from '../models/systemModel';
+import { scopedDealerIds, dealerInScope, canEdit, isSales } from '../lib/salesScope';
 
 // Single source of truth for how many points a bill is worth. Used identically
 // by add/edit/delete so the three operations can never disagree.
@@ -54,6 +55,9 @@ export const addBill = async (req: Request, res: Response) => {
       const user = await User.findById(userId);
       if (!user) {
         return res.status(400).json({ error: 'Invalid user ID' });
+      }
+      if (isSales(req.user) && (!canEdit(req.user) || !dealerInScope(req.user, user))) {
+        return res.status(403).json({ error: 'This dealer is outside your assigned area' });
       }
 
       // Out-of-scheme dealers (mobile-dominant) can redeem but never earn.
@@ -140,6 +144,9 @@ export const getAllBills = async (req: Request, res: Response) => {
         const search = String(req.query.search ?? '').trim();
 
         const pre: Record<string, unknown> = { voided: { $ne: true } };
+        // Sales users only see bills for dealers inside their scope.
+        const ids = await scopedDealerIds(req.user);
+        if (ids) pre.userId = { $in: ids };
         if (/^\d{4}-\d{2}$/.test(period)) pre.period = period;
         if (source === 'busy') pre.source = 'busy';
         else if (source === 'manual') pre.source = { $in: ['manual', null] }; // null also matches a missing field
@@ -205,6 +212,9 @@ export const editBill = async (req: Request, res: Response) => {
         if (!user) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
+        if (isSales(req.user) && (!canEdit(req.user) || !dealerInScope(req.user, user))) {
+            return res.status(403).json({ error: 'This bill is outside your assigned area' });
+        }
 
         // Out-of-scheme dealers never earn — the same guard addBill applies, so an
         // edit can't quietly start crediting a redeem-only dealer.
@@ -256,6 +266,9 @@ export const deleteBill = async (req: Request, res: Response) => {
         const user = await User.findById(bill.userId);
         if (!user) {
             return res.status(400).json({ error: 'Invalid user ID' });
+        }
+        if (isSales(req.user) && (!canEdit(req.user) || !dealerInScope(req.user, user))) {
+            return res.status(403).json({ error: 'This bill is outside your assigned area' });
         }
 
         // Subtract exactly what was granted (stored value; recompute only for
@@ -317,6 +330,9 @@ export const setBillExcluded = async (req: Request, res: Response) => {
         const user = await User.findById(bill.userId);
         if (!user) {
             return res.status(400).json({ error: 'Invalid user ID' });
+        }
+        if (isSales(req.user) && (!canEdit(req.user) || !dealerInScope(req.user, user))) {
+            return res.status(403).json({ error: 'This bill is outside your assigned area' });
         }
         const earns = (user as { inScheme?: boolean }).inScheme !== false;
 

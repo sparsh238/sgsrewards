@@ -4,15 +4,15 @@ import { getUsers, getUserById, getDealerSummary, getOrders, getOrderById, updat
 
 const router = Router();
 
-router.get('/users', authMiddleware('admin', 'superadmin'), getUsers);
-router.get('/users/:id/summary', authMiddleware('admin', 'superadmin'), getDealerSummary);
-router.get('/users/:id', authMiddleware('admin', 'superadmin'), getUserById);
+router.get('/users', authMiddleware('admin', 'superadmin', 'sales'), getUsers);
+router.get('/users/:id/summary', authMiddleware('admin', 'superadmin', 'sales'), getDealerSummary);
+router.get('/users/:id', authMiddleware('admin', 'superadmin', 'sales'), getUserById);
 router.post('/add-customer', authMiddleware('admin', 'superadmin'), addCustomer);
 router.post('/add-customers', authMiddleware('admin', 'superadmin'), addCustomers);
-router.get('/orders', authMiddleware('admin', 'superadmin'), getOrders);
-router.get('/overview', authMiddleware('admin', 'superadmin'), getOverview);
-router.get('/calendar', authMiddleware('admin', 'superadmin'), getCalendar);
-router.get('/:orderId', authMiddleware('customer', 'admin', 'superadmin'), getOrderById);
-router.patch('/:orderId/status', authMiddleware('admin', 'superadmin'), updateOrderStatus);
+router.get('/orders', authMiddleware('admin', 'superadmin', 'sales'), getOrders);
+router.get('/overview', authMiddleware('admin', 'superadmin', 'sales'), getOverview);
+router.get('/calendar', authMiddleware('admin', 'superadmin', 'sales'), getCalendar);
+router.get('/:orderId', authMiddleware('customer', 'admin', 'superadmin', 'sales'), getOrderById);
+router.patch('/:orderId/status', authMiddleware('admin', 'superadmin', 'sales'), updateOrderStatus);
 
 export default router;

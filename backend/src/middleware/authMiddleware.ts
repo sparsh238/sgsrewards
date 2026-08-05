@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 import User from '../models/userModel';
 
-type UserRole = 'customer' | 'admin' | 'superadmin';
+type UserRole = 'customer' | 'admin' | 'superadmin' | 'sales';
 
 const authMiddleware = (...requiredRoles: UserRole[]) => async (req: Request, res: Response, next: NextFunction) => {
   const token = req.header('Authorization')?.replace('Bearer ', '');

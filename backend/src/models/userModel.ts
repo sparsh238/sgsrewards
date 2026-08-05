@@ -10,7 +10,13 @@ interface User extends Document {
   partyName:string;
   phoneNumber: string;
   password: string;
-  userType: 'customer' | 'admin' | 'superadmin';
+  userType: 'customer' | 'admin' | 'superadmin' | 'sales';
+  // Sales-team scope (userType 'sales' only). A sales user sees dealers whose
+  // region is in salesRegions OR whose salesperson tag is in salesBooks — the
+  // union. salesReadOnly = manager/oversight (can view their scope, not edit).
+  salesRegions?: string[];
+  salesBooks?: string[];
+  salesReadOnly?: boolean;
   availablePoints: number;
   totalPoints: number;
   savedAddresses: ObjectId[];
@@ -39,6 +45,13 @@ interface User extends Document {
   gstin?: string;
   region?: string;
   district?: string;
+  // Sales-team members who handle this dealer, from the BI mirror (a dealer can
+  // have several across brands). Scoping matches a rep's "books" against this
+  // array. `salesperson` is the primary (most-active) for display; `salesHead`
+  // is the manager (Manoj / Rajiv). Empty = unassigned.
+  salesperson?: string;
+  salespersons?: string[];
+  salesHead?: string;
   // true = real CD dealer in the scheme (earns points, counts in tier/overview).
   // false = out-of-scheme (mobile-dominant): can log in and redeem, but earns nothing.
   inScheme: boolean;
@@ -49,7 +62,10 @@ const userSchema = new Schema<User>({
   partyName:{ type: String, required: true},
   phoneNumber: { type: String, required: true },
   password: { type: String, required: true },
-  userType: { type: String, required: true, enum: ['customer', 'admin', 'superadmin'] },
+  userType: { type: String, required: true, enum: ['customer', 'admin', 'superadmin', 'sales'] },
+  salesRegions: { type: [String], default: undefined },
+  salesBooks: { type: [String], default: undefined },
+  salesReadOnly: { type: Boolean, default: false },
   availablePoints: { type: Number, default: 0 },
   totalPoints: { type: Number, default: 0 },
   savedAddresses: [{ type: Schema.Types.ObjectId, ref: 'Address' }],
@@ -78,6 +94,9 @@ const userSchema = new Schema<User>({
   gstin: { type: String, default: '' },
   region: { type: String, default: '' },
   district: { type: String, default: '' },
+  salesperson: { type: String, default: '', index: true },
+  salespersons: { type: [String], default: undefined, index: true },
+  salesHead: { type: String, default: '' },
   inScheme: { type: Boolean, default: true },
 });
 

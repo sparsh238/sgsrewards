@@ -5,6 +5,7 @@ import Order from '../models/orderModel';
 import Bill from '../models/billModel';
 import System from '../models/systemModel';
 import { fiscalQuarter } from '../lib/fiscalQuarter';
+import { salesUserFilter, scopedDealerIds, dealerInScope, canEdit, isSales } from '../lib/salesScope';
 
 const TIER_ORDER = ['NoTier', 'Basic', 'Bronze', 'Silver', 'Gold', 'Platinum'];
 
@@ -27,8 +28,9 @@ const getOverview = async (req: Request, res: Response) => {
       { $group: { _id: '$userId', billed: { $sum: '$billAmount' } } },
     ]);
     const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
-    // Overview scheme-math covers only in-scheme (real CD) dealers.
-    const dealers = await User.find({ userType: 'customer', inScheme: { $ne: false } });
+    // Overview scheme-math covers only in-scheme (real CD) dealers — and, for a
+    // sales user, only those inside their region/book scope.
+    const dealers = await User.find({ userType: 'customer', inScheme: { $ne: false }, ...salesUserFilter(req.user) });
 
     let promoting = 0, atRisk = 0, billing = 0;
     const byRegion: Record<string, any> = {};
@@ -88,6 +90,9 @@ const getDealerSummary = async (req: Request, res: Response) => {
     if (!user || user.userType !== 'customer') {
       return res.status(404).send({ error: 'Dealer not found' });
     }
+    if (!dealerInScope(req.user, user)) {
+      return res.status(403).send({ error: 'Dealer is outside your assigned area' });
+    }
     const system = await System.findOne();
     const reqs = (system?.tierBillingRequirements ?? {}) as Record<string, number>;
     const conv = (system?.tierPointsConversion ?? {}) as Record<string, number>;
@@ -143,7 +148,7 @@ const getDealerSummary = async (req: Request, res: Response) => {
 
 const getUsers = async (req: Request, res: Response) => {
   try {
-    const users = await User.find({ userType: 'customer' });
+    const users = await User.find({ userType: 'customer', ...salesUserFilter(req.user) });
     res.send(users);
   } catch (error) {
     res.status(500).send(error);
@@ -152,9 +157,9 @@ const getUsers = async (req: Request, res: Response) => {
 
 // Dealer birthday + anniversary events for the admin calendar. Dates recur every
 // year, so only month/day matter — the frontend places them on any year's grid.
-const getCalendar = async (_req: Request, res: Response) => {
+const getCalendar = async (req: Request, res: Response) => {
   try {
-    const users = await User.find({ userType: 'customer' })
+    const users = await User.find({ userType: 'customer', ...salesUserFilter(req.user) })
       .select('partyName phoneNumber tier region dateOfBirth anniversaryDate') as Array<any>;
     const events: Array<{ name: string; phone: string; tier: string; region: string; type: 'birthday' | 'anniversary'; month: number; day: number }> = [];
     let missing = 0;
@@ -182,6 +187,9 @@ const getUserById = async (req: Request, res: Response) => {
     const user = await User.findById(req.params.id).populate('orders savedAddresses');
     if (!user) {
       return res.status(404).send({ error: 'User not found' });
+    }
+    if (isSales(req.user) && !dealerInScope(req.user, user)) {
+      return res.status(403).send({ error: 'Dealer is outside your assigned area' });
     }
     res.send(user);
   } catch (error) {
@@ -267,7 +275,9 @@ const addCustomers = async (req: Request, res: Response) => {
 
 const getOrders = async (req: Request, res: Response) => {
   try {
-      const orders = await Order.find()
+      // Sales users see only orders placed by dealers inside their scope.
+      const ids = await scopedDealerIds(req.user);
+      const orders = await Order.find(ids ? { userId: { $in: ids } } : {})
           .populate({ path: 'userId', select: 'partyName phoneNumber' })
           .populate({ path: 'items.itemId', select: 'name' })
           .populate({ path: 'address' });
@@ -317,6 +327,16 @@ const updateOrderStatus = async (req: Request, res: Response) => {
     const order = await Order.findById(orderId);
     if (!order) {
       return res.status(404).send({ error: 'Order not found' });
+    }
+
+    // Sales scope: a read-only manager can't change status, and a full-access
+    // sales user can only touch orders from dealers inside their area.
+    if (isSales(req.user)) {
+      if (!canEdit(req.user)) return res.status(403).send({ error: 'Read-only access — cannot change orders' });
+      const dealer = await User.findById(order.userId, { region: 1, salesperson: 1 });
+      if (!dealer || !dealerInScope(req.user, dealer)) {
+        return res.status(403).send({ error: 'Order is outside your assigned area' });
+      }
     }
 
     // Refund/re-charge points, gated on a `pointsRefunded` flag so the refund is

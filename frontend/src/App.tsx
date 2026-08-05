@@ -112,6 +112,17 @@ export default function App() {
         </Route>
       </Route>
 
+      {/* Sales console — scoped to the rep's dealers; no Rewards / Tier Review / System */}
+      <Route element={<RequireRole roles={['sales']} />}>
+        <Route path="/sales" element={<AdminShell />}>
+          <Route index element={<Overview />} />
+          <Route path="users" element={<Users />} />
+          <Route path="orders" element={<AdminOrders />} />
+          <Route path="bills" element={<Bills />} />
+          <Route path="calendar" element={<Calendar />} />
+        </Route>
+      </Route>
+
       {/* Superadmin console (adds Users management + System) */}
       <Route element={<RequireRole roles={['superadmin']} />}>
         <Route path="/superadmin" element={<AdminShell />}>
