@@ -118,7 +118,7 @@ const getDealerSummary = async (req: Request, res: Response) => {
         { $group: { _id: null, count: { $sum: 1 }, points: { $sum: '$totalValue' } } },
       ]),
       Order.find({ userId: user._id, status: 'Completed' }).sort({ orderDate: -1, _id: -1 }).limit(5)
-        .populate({ path: 'items.itemId', select: 'name' })
+        .populate({ path: 'items.itemId', select: 'name pointsRequired discount' })
         .select('orderIdAlias totalValue orderDate items status'),
     ]);
 
@@ -288,7 +288,7 @@ const getOrders = async (req: Request, res: Response) => {
       const ids = await scopedDealerIds(req.user);
       const orders = await Order.find(ids ? { userId: { $in: ids } } : {})
           .populate({ path: 'userId', select: 'partyName phoneNumber' })
-          .populate({ path: 'items.itemId', select: 'name' })
+          .populate({ path: 'items.itemId', select: 'name pointsRequired discount' })
           .populate({ path: 'address' });
       
       res.send(orders);
@@ -303,7 +303,7 @@ const getOrderById = async (req: Request, res: Response) => {
   try {
       const order = await Order.findById(orderId)
           .populate({ path: 'userId', select: 'partyName phoneNumber' })
-          .populate({ path: 'items.itemId', select: 'name' })
+          .populate({ path: 'items.itemId', select: 'name pointsRequired discount' })
           .populate({ path: 'address' });
 
       if (!order) {

@@ -13,7 +13,7 @@ interface AdminOrder {
   totalValue: number;
   orderDate: string;
   status: 'Pending' | 'Completed' | 'Cancelled';
-  items: { itemId: { name?: string } | null; quantity: number }[];
+  items: { itemId: { name?: string; pointsRequired?: number; discount?: number } | null; quantity: number }[];
   address?: { addressLine1?: string; city?: string; pinCode?: string } | null;
 }
 
@@ -91,7 +91,12 @@ export default function Orders() {
               {visible.map((o) => (
                 <Fragment key={o._id}>
                 <tr>
-                  <td className="t-strong t-num" data-label="Order">{o.orderIdAlias}</td>
+                  <td className="t-strong t-num" data-label="Order">
+                    <button className="ord-toggle" onClick={() => setItemsOpen(itemsOpen === o._id ? null : o._id)} title={itemsOpen === o._id ? 'Hide items' : 'Show items'} aria-expanded={itemsOpen === o._id}>
+                      <span className={`ord-chev${itemsOpen === o._id ? ' open' : ''}`}><svg viewBox="0 0 10 10"><path d="M3 1 L7 5 L3 9" /></svg></span>
+                      {o.orderIdAlias}
+                    </button>
+                  </td>
                   <td data-label="Dealer">
                     <div className="t-strong">
                       {o.userId?._id
@@ -101,11 +106,8 @@ export default function Orders() {
                     <div className="hint">{o.userId?.phoneNumber ?? ''}</div>
                   </td>
                   <td data-label="Items">
-                    <button className="linklike" onClick={() => setItemsOpen(itemsOpen === o._id ? null : o._id)} title="Show all items">
-                      <span className={`row-caret${itemsOpen === o._id ? ' open' : ''}`}>▸</span>
-                      {o.items[0]?.itemId?.name ?? 'items'}
-                      {o.items.length > 1 && <span className="hint"> +{o.items.length - 1}</span>}
-                    </button>
+                    {o.items[0]?.itemId?.name ?? 'items'}
+                    {o.items.length > 1 && <span className="hint"> +{o.items.length - 1} more</span>}
                   </td>
                   <td className="t-num" data-label="Points">{formatNumber(o.totalValue)}</td>
                   <td className="hint" data-label="Date">{formatDate(o.orderDate)}</td>
@@ -126,13 +128,22 @@ export default function Orders() {
                 </tr>
                 {itemsOpen === o._id && (
                   <tr className="row-detail"><td colSpan={6}>
-                    <div className="ord-items">
-                      {o.items.map((it, i) => (
-                        <div className="ord-irow" key={i}>
-                          <span>{it.itemId?.name ?? 'Item'}</span>
-                          <span className="t-num hint">× {it.quantity}</span>
-                        </div>
-                      ))}
+                    <div className="ord-receipt">
+                      <div className="ord-rh">{o.items.length} item{o.items.length === 1 ? '' : 's'} redeemed</div>
+                      {o.items.map((it, i) => {
+                        const unit = Math.max(0, (it.itemId?.pointsRequired ?? 0) - (it.itemId?.discount ?? 0));
+                        return (
+                          <div className="ord-li" key={i}>
+                            <span className="ord-li-name"><span className="ord-dot" />{it.itemId?.name ?? 'Item'}</span>
+                            <span className="ord-calc"><b className="tnum">{formatNumber(unit)}</b> pts × {it.quantity}</span>
+                            <span className="ord-li-total tnum">{formatNumber(unit * it.quantity)}</span>
+                          </div>
+                        );
+                      })}
+                      <div className="ord-total">
+                        <span className="lab">Total redeemed</span>
+                        <span className="val tnum">{formatNumber(o.totalValue)} <small>pts</small></span>
+                      </div>
                     </div>
                   </td></tr>
                 )}
