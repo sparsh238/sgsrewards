@@ -11,6 +11,7 @@ import superAdminRoutes from './routes/superAdminRoutes';
 import itemRoutes from './routes/itemRoutes'
 import billRoutes from './routes/billRoutes'
 import errorHandler from './utils/errorHandler';
+import path from 'path';
 
 dotenv.config();
 
@@ -44,6 +45,11 @@ if (allowedOrigins.length === 0) {
 app.use('/uploads', express.static('uploads'));
 app.use(express.json({ limit: '1mb' }));
 
+// Unauthenticated liveness probe for deploy checks / reverse-proxy health.
+app.get('/healthz', (_req: Request, res: Response) => {
+  res.json({ ok: true, db: mongoose.connection.readyState === 1 });
+});
+
 // Throttle authentication endpoints to blunt brute-force / credential-stuffing.
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -59,6 +65,19 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/item', itemRoutes);
 app.use('/api/bill', billRoutes);
+
+// Single-origin deploy: serve the built SPA from the same origin as the API so the
+// frontend can use relative /api paths (no CORS). Guarded by SERVE_STATIC so local
+// dev (Vite on its own port) is unaffected. Non-/api, non-/uploads GETs fall back
+// to index.html for client-side routing.
+if (process.env.SERVE_STATIC === 'true') {
+  const clientDir = process.env.CLIENT_DIR || path.join(__dirname, 'public');
+  app.use(express.static(clientDir));
+  app.get('*', (req: Request, res: Response, next: NextFunction) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/uploads')) return next();
+    res.sendFile(path.join(clientDir, 'index.html'));
+  });
+}
 
 app.use(errorHandler);
 

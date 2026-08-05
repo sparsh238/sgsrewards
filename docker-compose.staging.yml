@@ -1,0 +1,18 @@
+# SGS Rewards — STAGING. Isolated from prod (own subdomain/port/dir). One container
+# serves the API + SPA. Secrets come from .env.staging (lives only on the VPS).
+services:
+  loyalty-staging:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: loyalty-staging:latest
+    container_name: loyalty-staging
+    restart: unless-stopped
+    env_file: .env.staging
+    environment:
+      SERVE_STATIC: "true"
+      CLIENT_DIR: /app/public
+      PORT: "3000"
+    # Bound to localhost only; CloudPanel reverse-proxy fronts it with HTTPS.
+    ports:
+      - "127.0.0.1:8090:3000"

@@ -1,0 +1,9 @@
+**/node_modules
+**/dist
+**/build
+**/.git
+**/*.log
+**/.DS_Store
+backend/uploads
+legacy-loyalty-app-front
+KNOWN_ISSUES.md
