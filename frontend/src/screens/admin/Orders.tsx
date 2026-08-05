@@ -62,7 +62,7 @@ export default function Orders() {
   return (
     <>
       <div className="admin-head">
-        <div><h1>Orders</h1><p className="page-sub">Update fulfilment status. Cancelling refunds the dealer's points.</p></div>
+        <div><h1>Orders</h1><p className="page-sub">{isSales ? "Redemption orders placed by your dealers." : "Update fulfilment status. Cancelling refunds the dealer's points."}</p></div>
         <div className="admin-toolbar">
           <SearchInput value={query} onChange={setQuery} placeholder="Search order / dealer / phone…" />
         </div>

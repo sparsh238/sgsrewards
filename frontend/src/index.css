@@ -2084,3 +2084,14 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
   table.data > tbody > tr > td:first-child::before { content: none; }
   table.data > tbody > tr > td:first-child .hint { font-size: 12px; }
 }
+
+/* ---- Mobile overflow safety: topbar fit + no horizontal page scroll ---- */
+@media (max-width: 720px) {
+  .admin-topbar { min-width: 0; }
+  .admin-topbar .admin-brand, .admin-topbar .admin-burger, .admin-topout { flex: 0 0 auto; }
+  .admin-topbar .admin-role { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .admin-main { overflow-x: hidden; max-width: 100%; }
+  .admin-head, .admin-toolbar { min-width: 0; max-width: 100%; }
+  table.data > tbody > tr > td { min-width: 0; }
+  table.data > tbody > tr > td > * { min-width: 0; overflow-wrap: anywhere; }
+}

@@ -10,7 +10,7 @@ export default function AdminShell() {
   const isSuper = auth.userType === 'superadmin';
   const isSales = auth.userType === 'sales';
   const base = isSales ? '/sales' : isSuper ? '/superadmin' : '/admin';
-  const roleLabel = isSales ? (auth.salesReadOnly ? 'Sales Head · view only' : 'Salesperson') : isSuper ? 'Superadmin' : 'Admin';
+  const roleLabel = isSales ? (auth.salesReadOnly ? 'Sales Head' : 'Salesperson') : isSuper ? 'Superadmin' : 'Admin';
   const [navOpen, setNavOpen] = useState(false);
 
   const link = (to: string, label: string) => (

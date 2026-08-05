@@ -115,7 +115,7 @@ export default function Users() {
       <div className="admin-head">
         <div>
           <h1>{auth.userType === 'sales' ? 'Dealers' : 'Users'}</h1>
-          <p className="page-sub">Dealer accounts, keyed by phone &amp; GSTIN. Staff live under Team.</p>
+          <p className="page-sub">{auth.userType === 'sales' ? 'Your dealers, scoped to your assigned areas.' : 'Dealer accounts, keyed by phone & GSTIN. Staff live under Team.'}</p>
         </div>
         <div className="admin-toolbar">
           {tab === 'dealers' && regions.length > 0 && (
