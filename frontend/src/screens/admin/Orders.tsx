@@ -26,6 +26,7 @@ export default function Orders() {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<'All' | AdminOrder['status']>('All');
   const [dealerOpen, setDealerOpen] = useState<string | null>(null);
+  const [itemsOpen, setItemsOpen] = useState<string | null>(null);
   const [error, setError] = useState('');
   const { toast, toastError } = useToast();
 
@@ -100,8 +101,11 @@ export default function Orders() {
                     <div className="hint">{o.userId?.phoneNumber ?? ''}</div>
                   </td>
                   <td data-label="Items">
-                    {o.items[0]?.itemId?.name ?? 'items'}
-                    {o.items.length > 1 && <span className="hint"> +{o.items.length - 1}</span>}
+                    <button className="linklike" onClick={() => setItemsOpen(itemsOpen === o._id ? null : o._id)} title="Show all items">
+                      <span className={`row-caret${itemsOpen === o._id ? ' open' : ''}`}>▸</span>
+                      {o.items[0]?.itemId?.name ?? 'items'}
+                      {o.items.length > 1 && <span className="hint"> +{o.items.length - 1}</span>}
+                    </button>
                   </td>
                   <td className="t-num" data-label="Points">{formatNumber(o.totalValue)}</td>
                   <td className="hint" data-label="Date">{formatDate(o.orderDate)}</td>
@@ -120,6 +124,18 @@ export default function Orders() {
                     )}
                   </td>
                 </tr>
+                {itemsOpen === o._id && (
+                  <tr className="row-detail"><td colSpan={6}>
+                    <div className="ord-items">
+                      {o.items.map((it, i) => (
+                        <div className="ord-irow" key={i}>
+                          <span>{it.itemId?.name ?? 'Item'}</span>
+                          <span className="t-num hint">× {it.quantity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </td></tr>
+                )}
                 {dealerOpen === o._id && o.userId?._id && (
                   <tr className="row-detail"><td colSpan={6}><DealerCard userId={o.userId._id} /></td></tr>
                 )}
