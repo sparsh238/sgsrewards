@@ -17,6 +17,9 @@ interface User extends Document {
   salesRegions?: string[];
   salesBooks?: string[];
   salesReadOnly?: boolean;
+  // The named areas the sales user was assigned (source of truth for the derived
+  // salesRegions/salesBooks above); shown/edited in the create-salesperson form.
+  salesAreas?: string[];
   availablePoints: number;
   totalPoints: number;
   savedAddresses: ObjectId[];
@@ -66,6 +69,7 @@ const userSchema = new Schema<User>({
   salesRegions: { type: [String], default: undefined },
   salesBooks: { type: [String], default: undefined },
   salesReadOnly: { type: Boolean, default: false },
+  salesAreas: { type: [String], default: undefined },
   availablePoints: { type: Number, default: 0 },
   totalPoints: { type: Number, default: 0 },
   savedAddresses: [{ type: Schema.Types.ObjectId, ref: 'Address' }],

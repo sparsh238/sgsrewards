@@ -1,11 +1,13 @@
 import { Router } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
-import { addUser, deleteUser, blockUser, resetPassword, updatePointsConversion, refreshUserList, getAllUsers, getPointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, getTierReview, applyTierReview, updateDealer } from '../controllers/superAdminController';
+import { addUser, addSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, updatePointsConversion, refreshUserList, getAllUsers, getPointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, getTierReview, applyTierReview, updateDealer } from '../controllers/superAdminController';
 
 const router = Router();
 
 router.get('/allusers', authMiddleware('superadmin'), getAllUsers);
 router.post('/sausers', authMiddleware('superadmin'), addUser);
+router.get('/sales-areas', authMiddleware('superadmin'), getSalesAreas);
+router.post('/sales-user', authMiddleware('superadmin'), addSalesUser);
 router.delete('/users/:id', authMiddleware('superadmin'), deleteUser);
 router.post('/users/:id/block', authMiddleware('superadmin'), blockUser);
 router.post('/users/:id/reset-password', authMiddleware('superadmin'), resetPassword);

@@ -21,7 +21,9 @@ interface UserRow {
   anniversaryDate?: string | null;
   profileCompleted?: boolean;
   inScheme?: boolean;
-  userType: 'customer' | 'admin' | 'superadmin';
+  userType: 'customer' | 'admin' | 'superadmin' | 'sales';
+  salesReadOnly?: boolean;
+  salesAreas?: string[];
   availablePoints: number;
   tier: Tier;
   blocked?: boolean;
@@ -38,7 +40,8 @@ export default function Users() {
   const [addOpen, setAddOpen] = useState(false);
   const [resetFor, setResetFor] = useState<UserRow | null>(null);
   const [editFor, setEditFor] = useState<UserRow | null>(null);
-  const [tab, setTab] = useState<'dealers' | 'team'>('dealers');
+  const [tab, setTab] = useState<'dealers' | 'team' | 'sales'>('dealers');
+  const [addSalesOpen, setAddSalesOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState<TierFilter>('All');
   const [scheme, setScheme] = useState<'all' | 'active' | 'redeem'>('all');
   const [region, setRegion] = useState<string>('All');
@@ -71,7 +74,8 @@ export default function Users() {
   };
 
   const dealers = useMemo(() => (users ?? []).filter((u) => u.userType === 'customer'), [users]);
-  const staff = useMemo(() => (users ?? []).filter((u) => u.userType !== 'customer'), [users]);
+  const staff = useMemo(() => (users ?? []).filter((u) => u.userType === 'admin' || u.userType === 'superadmin'), [users]);
+  const salespeople = useMemo(() => (users ?? []).filter((u) => u.userType === 'sales'), [users]);
   const isActive = (u: UserRow) => u.inScheme !== false;
   const regions = useMemo(() => [...new Set(dealers.map((u) => u.region).filter(Boolean) as string[])].sort(), [dealers]);
 
@@ -120,8 +124,10 @@ export default function Users() {
               {regions.map((r) => <option key={r} value={r}>{r}</option>)}
             </select>
           )}
-          <SearchInput value={query} onChange={setQuery} placeholder="Search name / phone / GSTIN…" />
-          {isSuper && <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setAddOpen(true)}>+ Add {tab === 'team' ? 'staff' : 'dealer'}</button>}
+          {tab !== 'sales' && <SearchInput value={query} onChange={setQuery} placeholder="Search name / phone / GSTIN…" />}
+          {isSuper && tab === 'sales'
+            ? <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setAddSalesOpen(true)}>+ Add salesperson</button>
+            : isSuper && <button className="btn btn-primary" style={{ width: 'auto', padding: '10px 18px' }} onClick={() => setAddOpen(true)}>+ Add {tab === 'team' ? 'staff' : 'dealer'}</button>}
         </div>
       </div>
 
@@ -129,6 +135,7 @@ export default function Users() {
         <div className="admin-tabs">
           <button className={`atab${tab === 'dealers' ? ' on' : ''}`} onClick={() => setTab('dealers')}>Dealers <b>{dealers.length}</b></button>
           <button className={`atab${tab === 'team' ? ' on' : ''}`} onClick={() => setTab('team')}>Team <b>{staff.length}</b></button>
+          <button className={`atab${tab === 'sales' ? ' on' : ''}`} onClick={() => setTab('sales')}>Sales <b>{salespeople.length}</b></button>
         </div>
       )}
 
@@ -151,7 +158,28 @@ export default function Users() {
       {error && <div className="error-banner" role="alert">{error}</div>}
       {users === null && !error && <div className="skeleton" style={{ height: 200 }} />}
 
-      {users !== null && (
+      {users !== null && tab === 'sales' && (
+        <div className="table-wrap">
+          <table className="data">
+            <thead><tr><th>Salesperson</th><th>Username</th><th>Role</th><th>Areas</th><th>Access</th><th></th></tr></thead>
+            <tbody>
+              {salespeople.map((u) => (
+                <tr key={u._id}>
+                  <td className="t-strong">{u.partyName}</td>
+                  <td className="hint t-mono">{u.username}</td>
+                  <td>{u.salesReadOnly ? <span className="ro-tag">Sales Head</span> : 'Salesperson'}</td>
+                  <td className="hint">{(u.salesAreas ?? []).join(', ') || '—'}</td>
+                  <td><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
+                  <td><div className="t-actions"><button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button></div></td>
+                </tr>
+              ))}
+              {salespeople.length === 0 && <tr><td colSpan={6} className="hint" style={{ textAlign: 'center', padding: 30 }}>No salespeople yet — add one to get started.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {users !== null && tab !== 'sales' && (
         <div className="table-wrap">
           <table className="data">
             <thead>
@@ -221,6 +249,7 @@ export default function Users() {
       )}
 
       {addOpen && <AddUserModal isSuper={isSuper} defaultStaff={tab === 'team'} onClose={() => setAddOpen(false)} onSaved={() => { setAddOpen(false); load(); }} />}
+      {addSalesOpen && <AddSalesModal onClose={() => setAddSalesOpen(false)} onSaved={() => { setAddSalesOpen(false); load(); }} />}
       {resetFor && <ResetModal user={resetFor} onClose={() => setResetFor(null)} />}
       {editFor && <EditDealerModal user={editFor} onClose={() => setEditFor(null)} onSaved={() => { setEditFor(null); load(); }} />}
     </>
@@ -372,6 +401,60 @@ function ResetModal({ user, onClose }: { user: { _id: string; partyName: string;
       <div className="modal-actions">
         <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
         <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Resetting…' : 'Reset'}</button>
+      </div>
+    </Modal>
+  );
+}
+
+// Create a sales-team login: name, username, temp password, role (rep / read-only
+// head) and one or more areas. Scope is derived from the areas server-side.
+function AddSalesModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ partyName: '', username: '', password: '' });
+  const [readOnly, setReadOnly] = useState(false);
+  const [areas, setAreas] = useState<string[]>([]);
+  const [allAreas, setAllAreas] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const { toast, toastError } = useToast();
+  useEffect(() => { apiJson<{ areas: string[] }>('/api/superadmin/sales-areas').then((d) => setAllAreas(d.areas)).catch(() => {}); }, []);
+  const set = (k: 'partyName' | 'username' | 'password') => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const toggleArea = (a: string) => setAreas((x) => x.includes(a) ? x.filter((y) => y !== a) : [...x, a]);
+
+  const save = async () => {
+    if (!form.partyName.trim() || !form.username.trim() || !form.password) { toastError('Name, username and a temp password are required.'); return; }
+    if (areas.length === 0) { toastError('Assign at least one area.'); return; }
+    setBusy(true);
+    try {
+      await apiJson('/api/superadmin/sales-user', { method: 'POST', json: { partyName: form.partyName.trim(), username: form.username.trim(), password: form.password, areas, readOnly } });
+      toast(`${form.partyName.trim()} created`);
+      onSaved();
+    } catch (err) { toastError((err as Error).message); }
+    finally { setBusy(false); }
+  };
+
+  return (
+    <Modal title="Add salesperson" onClose={onClose}>
+      <div className="form-grid">
+        <div className="field"><label htmlFor="sp-n">Name</label><input id="sp-n" className="input" value={form.partyName} onChange={set('partyName')} /></div>
+        <div className="field"><label htmlFor="sp-u">Username</label><input id="sp-u" className="input" value={form.username} onChange={set('username')} /></div>
+        <div className="field full"><label htmlFor="sp-p">Temp password</label><input id="sp-p" className="input" value={form.password} onChange={set('password')} /></div>
+      </div>
+      <div className="scheme-toggle">
+        <div>
+          <div className="st-title">Sales Head — view only</div>
+          <div className="st-sub">{readOnly ? 'Oversees these areas; cannot edit bills/orders.' : 'Full access within these areas.'}</div>
+        </div>
+        <button type="button" className={`switch${readOnly ? ' on' : ''}`} role="switch" aria-checked={readOnly} aria-label="Sales head" onClick={() => setReadOnly((v) => !v)} />
+      </div>
+      <div className="field">
+        <label>Areas <span className="hint">· pick one or more</span></label>
+        <div className="chip-row" style={{ flexWrap: 'wrap', gap: 8 }}>
+          {allAreas.map((a) => <button key={a} type="button" className={`fchip${areas.includes(a) ? ' on' : ''}`} onClick={() => toggleArea(a)}>{a}</button>)}
+        </div>
+      </div>
+      <p className="hint">They sign in via <b>Staff login</b> with this username + temp password, then set their own on first login.</p>
+      <div className="modal-actions">
+        <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+        <button className="btn btn-primary" onClick={save} disabled={busy}>{busy ? 'Creating…' : 'Create'}</button>
       </div>
     </Modal>
   );

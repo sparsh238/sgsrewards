@@ -6,7 +6,7 @@ import PinInput from '../components/PinInput';
 import AuthHeader from '../components/AuthHeader';
 
 interface LoginResponse {
-  user: { username: string; userType: UserType; partyName: string; isPasswordReset: boolean };
+  user: { username: string; userType: UserType; partyName: string; isPasswordReset: boolean; salesReadOnly?: boolean };
   token: string;
   refreshToken: string;
 }
@@ -27,6 +27,8 @@ export default function Login() {
   const afterLogin = (data: LoginResponse) => {
     // Store everything (incl. isPasswordReset); the route guards send the user
     // to set-pin / reset-password when needed — no imperative navigation race.
+    // Sales heads are read-only — stash it so the shell/login can soften the UI.
+    localStorage.setItem('salesReadOnly', String(data.user.salesReadOnly === true));
     login(data.refreshToken, data.user.username, data.user.userType, data.user.partyName, data.user.isPasswordReset);
     navigate(homeForRole(data.user.userType), { replace: true });
   };

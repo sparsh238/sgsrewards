@@ -5,6 +5,7 @@ import System from '../models/systemModel';
 import  Bill  from '../models/billModel';
 import OrderModel from '../models/orderModel';
 import { fiscalQuarter } from '../lib/fiscalQuarter';
+import { AREAS, AREA_NAMES, areasToScope } from '../lib/salesAreas';
 
 const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -350,4 +351,42 @@ const applyTierReview = async (req: Request, res: Response) => {
   }
 };
 
-export { getAllUsers, addUser, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer };
+// The named areas the create-salesperson form offers.
+const getSalesAreas = async (_req: Request, res: Response) => {
+  res.send({ areas: AREA_NAMES });
+};
+
+// Create a sales-team login (rep or read-only head). Scope is derived from the
+// assigned areas. Username must be unique; the temp password forces a reset on
+// first login. `readOnly: true` = Sales Head (view-only over their scope).
+const addSalesUser = async (req: Request, res: Response) => {
+  const { partyName, username, password, areas, readOnly } = req.body as {
+    partyName?: string; username?: string; password?: string; areas?: string[]; readOnly?: boolean;
+  };
+  if (!partyName || !username || !password) {
+    return res.status(400).send({ error: 'Name, username and a temp password are required' });
+  }
+  const validAreas = (Array.isArray(areas) ? areas : []).filter((a) => AREAS[a]);
+  if (validAreas.length === 0) {
+    return res.status(400).send({ error: 'Assign at least one area' });
+  }
+  try {
+    if (await User.findOne({ username })) {
+      return res.status(400).send({ error: 'That username is already taken' });
+    }
+    const { salesRegions, salesBooks } = areasToScope(validAreas);
+    const user = new User({
+      username, partyName,
+      phoneNumber: req.body.phoneNumber || username, // schema requires non-empty; username is a safe placeholder
+      password: await bcrypt.hash(String(password), 8),
+      userType: 'sales', isPasswordReset: false,
+      salesReadOnly: !!readOnly, salesAreas: validAreas, salesRegions, salesBooks,
+    });
+    await user.save();
+    res.status(201).send(user);
+  } catch (error) {
+    res.status(400).send({ error: 'Could not create the sales user' });
+  }
+};
+
+export { getAllUsers, addUser, addSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer };
