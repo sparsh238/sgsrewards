@@ -165,12 +165,12 @@ export default function Users() {
             <tbody>
               {salespeople.map((u) => (
                 <tr key={u._id}>
-                  <td className="t-strong">{u.partyName}</td>
-                  <td className="hint t-mono">{u.username}</td>
-                  <td>{u.salesReadOnly ? <span className="ro-tag">Sales Head</span> : 'Salesperson'}</td>
-                  <td className="hint">{(u.salesAreas ?? []).join(', ') || '—'}</td>
-                  <td><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
-                  <td><div className="t-actions"><button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button></div></td>
+                  <td className="t-strong" data-label="Salesperson">{u.partyName}</td>
+                  <td className="hint t-mono" data-label="Username">{u.username}</td>
+                  <td data-label="Role">{u.salesReadOnly ? <span className="ro-tag">Sales Head</span> : 'Salesperson'}</td>
+                  <td className="hint" data-label="Areas">{(u.salesAreas ?? []).join(', ') || '—'}</td>
+                  <td data-label="Access"><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
+                  <td className="cell-actions"><div className="t-actions"><button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button></div></td>
                 </tr>
               ))}
               {salespeople.length === 0 && <tr><td colSpan={6} className="hint" style={{ textAlign: 'center', padding: 30 }}>No salespeople yet — add one to get started.</td></tr>}
@@ -197,7 +197,7 @@ export default function Users() {
                 return (
                 <Fragment key={u._id}>
                 <tr className={isDealer ? `row-click${open ? ' open' : ''}` : ''}>
-                  <td>
+                  <td data-label={isDealer ? 'Dealer' : 'Staff'}>
                     <div className="t-strong">
                       {isDealer && (
                         <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open}
@@ -214,10 +214,10 @@ export default function Users() {
                         : (contactName(u) || '—')}
                     </div>
                   </td>
-                  {tab === 'dealers' ? <td className="hint">{u.region || '—'}</td> : isSuper && <td className="hint">{u.userType}</td>}
-                  <td className="t-num">{u.phoneNumber}</td>
-                  <td className="t-num">{formatNumber(u.availablePoints)}</td>
-                  <td>
+                  {tab === 'dealers' ? <td className="hint" data-label="Area">{u.region || '—'}</td> : isSuper && <td className="hint" data-label="Role">{u.userType}</td>}
+                  <td className="t-num" data-label="Phone">{u.phoneNumber}</td>
+                  <td className="t-num" data-label="Points">{formatNumber(u.availablePoints)}</td>
+                  <td data-label="Tier">
                     {isSuper && u.userType === 'customer' ? (
                       <select className="input" style={{ padding: '5px 8px', width: 118 }} value={u.tier} onChange={(e) => changeTier(u, e.target.value as Tier)}>
                         {TIER_ORDER.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -225,10 +225,10 @@ export default function Users() {
                     ) : <span className="hint">{u.tier}</span>}
                   </td>
                   {isSuper && (
-                    <td><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
+                    <td data-label="Access"><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
                   )}
                   {isSuper && (
-                    <td><div className="t-actions">
+                    <td className="cell-actions"><div className="t-actions">
                       {u.userType === 'customer' && <button className="mini-btn" onClick={() => setEditFor(u)}>Edit</button>}
                       <button className="mini-btn" onClick={() => setResetFor(u)}>{u.userType === 'customer' ? 'Reset PIN' : 'Reset password'}</button>
                     </div></td>

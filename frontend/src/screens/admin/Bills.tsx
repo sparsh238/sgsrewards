@@ -165,14 +165,14 @@ export default function Bills() {
                   return (
                     <Fragment key={b._id}>
                     <tr className={b.excluded ? 'bill-excluded' : ''}>
-                      <td className="t-strong t-mono">
+                      <td className="t-strong t-mono" data-label="Bill #">
                         {hasItems && (
                           <button className={`row-caret${open ? ' open' : ''}`} aria-label={open ? 'Hide items' : 'Show items'} aria-expanded={open}
                             onClick={() => setExpanded(open ? null : b._id)}>▸</button>
                         )}
                         {b.billNumber}
                       </td>
-                      <td>
+                      <td data-label="Dealer">
                         <div className="t-strong">
                           {b.userId?._id
                             ? <button className="linklike" onClick={() => setDealerOpen(dealerOpen === b._id ? null : b._id)}>{b.userId?.partyName ?? '—'}</button>
@@ -180,18 +180,18 @@ export default function Bills() {
                         </div>
                         <div className="hint">{b.userId?.phoneNumber ?? ''}</div>
                       </td>
-                      <td className="hint">{b.userId?.region || '—'}</td>
-                      <td className="hint">{b.tierAtBill || b.userId?.tier || '—'}</td>
-                      <td className="t-num">₹{formatNumber(b.billAmount)}</td>
-                      <td className="t-num">{b.excluded ? <span className="pending" title="Disregarded — earns no points">+0</span> : b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
-                      <td className="hint">{formatDate(b.billDate)}</td>
-                      <td>
+                      <td className="hint" data-label="Area">{b.userId?.region || '—'}</td>
+                      <td className="hint" data-label="Tier">{b.tierAtBill || b.userId?.tier || '—'}</td>
+                      <td className="t-num" data-label="Amount">₹{formatNumber(b.billAmount)}</td>
+                      <td className="t-num" data-label="Points">{b.excluded ? <span className="pending" title="Disregarded — earns no points">+0</span> : b.pointsAwarded ? `+${formatNumber(b.pointsAwarded)}` : <span className="pending">+0</span>}</td>
+                      <td className="hint" data-label="Date">{formatDate(b.billDate)}</td>
+                      <td data-label="Source">
                         {busy
                           ? <span className="src-tag busy" title={b.locked ? 'Synced from Busy — you edited this, so the daily sync no longer touches it' : 'Synced from the daily Busy push'}>{b.locked ? 'synced · edited' : 'synced'}</span>
                           : <span className="src-tag">manual</span>}
                         {b.excluded && <span className="src-tag excl" title="Disregarded: no points, out of tier turnover">excluded</span>}
                       </td>
-                      <td>
+                      <td className="cell-actions">
                         <div className="t-actions">
                           <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
                           <button className="mini-btn" onClick={() => toggleExclude(b)} title={b.excluded ? 'Credit points again' : 'Award no points for this bill'}>{b.excluded ? 'Include' : 'Exclude'}</button>

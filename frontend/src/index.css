@@ -2045,3 +2045,28 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
   /* Tables stay scrollable (overflow-x on .table-wrap); nudge density down */
   table.data th, table.data td { padding: 10px 12px; }
 }
+
+/* ---- Truly responsive data tables: reflow rows into cards ≤720px ---- */
+@media (max-width: 720px) {
+  .table-wrap { overflow: visible; border: none; background: transparent; border-radius: 0; }
+  table.data { display: block; font-size: 13px; }
+  table.data > thead { display: none; }
+  table.data > tbody { display: block; }
+  table.data > tbody > tr { display: block; background: var(--panel); border: 1px solid var(--hairline);
+    border-radius: 12px; margin-bottom: 10px; padding: 4px 2px; }
+  table.data > tbody > tr > td { display: flex; justify-content: space-between; align-items: center; gap: 14px;
+    text-align: right; border: none; border-bottom: 1px solid var(--line-soft, #1b212c); padding: 8px 14px; }
+  table.data > tbody > tr > td:last-child { border-bottom: none; }
+  table.data > tbody > tr > td::before { content: attr(data-label); color: var(--muted); font-size: 10px;
+    text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; text-align: left; white-space: nowrap; flex: 0 0 auto; }
+  table.data > tbody > tr > td:not([data-label])::before { content: none; }
+  /* action cell: buttons hug the right, wrap if needed */
+  table.data > tbody > tr > td.cell-actions { justify-content: flex-end; flex-wrap: wrap; }
+  table.data > tbody > tr > td .t-actions { flex-wrap: wrap; justify-content: flex-end; }
+  /* detail rows (line items / dealer card) go full-width with no card chrome */
+  table.data > tbody > tr.row-detail { display: block; background: none; border: none; margin: -6px 0 10px; padding: 0; }
+  table.data > tbody > tr.row-detail > td { display: block; padding: 0; border: none; text-align: left; }
+  table.data > tbody > tr.row-detail > td::before { content: none; }
+  /* empty select-all / spacer cells shouldn't render an empty row */
+  table.data > tbody > tr > td:empty { display: none; }
+}

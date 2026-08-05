@@ -87,8 +87,8 @@ export default function Orders() {
               {visible.map((o) => (
                 <Fragment key={o._id}>
                 <tr>
-                  <td className="t-strong t-num">{o.orderIdAlias}</td>
-                  <td>
+                  <td className="t-strong t-num" data-label="Order">{o.orderIdAlias}</td>
+                  <td data-label="Dealer">
                     <div className="t-strong">
                       {o.userId?._id
                         ? <button className="linklike" onClick={() => setDealerOpen(dealerOpen === o._id ? null : o._id)}>{o.userId?.partyName ?? '—'}</button>
@@ -96,13 +96,13 @@ export default function Orders() {
                     </div>
                     <div className="hint">{o.userId?.phoneNumber ?? ''}</div>
                   </td>
-                  <td>
+                  <td data-label="Items">
                     {o.items[0]?.itemId?.name ?? 'items'}
                     {o.items.length > 1 && <span className="hint"> +{o.items.length - 1}</span>}
                   </td>
-                  <td className="t-num">{formatNumber(o.totalValue)}</td>
-                  <td className="hint">{formatDate(o.orderDate)}</td>
-                  <td>
+                  <td className="t-num" data-label="Points">{formatNumber(o.totalValue)}</td>
+                  <td className="hint" data-label="Date">{formatDate(o.orderDate)}</td>
+                  <td data-label="Status">
                     <select
                       className={`pill ${o.status.toLowerCase()}`}
                       style={{ border: 'none', cursor: 'pointer', padding: '4px 8px' }}
