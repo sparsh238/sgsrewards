@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { apiJson } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
 import { formatNumber } from '../../lib/format';
@@ -209,18 +209,21 @@ export default function OverviewScreen() {
               <div className="ov-focus-cards">
                 {focus.map((d) => {
                   const short = Math.max(0, d.floor - d.billed);
+                  const open = focusDealer === d._id;
                   return (
-                    <button className={`ov-fcard${focusDealer === d._id ? ' on' : ''}`} key={d._id} onClick={() => setFocusDealer(focusDealer === d._id ? null : d._id)}>
-                      <div className="ov-fn">{d.partyName}</div>
-                      <div className="ov-fr">{d.region} · <span style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</span>{d.noBills ? ' · 💤 ₹0' : ''}</div>
-                      <div className={`ov-fwhy${d.noBills ? ' dorm' : ' risk'}`}>
-                        {d.noBills ? `needs ${fmtMoney(d.floor)} to hold ${d.tier}` : `${fmtMoney(short)} short of ${d.tier}`}
-                      </div>
-                    </button>
+                    <Fragment key={d._id}>
+                      <button className={`ov-fcard${open ? ' on' : ''}`} onClick={() => setFocusDealer(open ? null : d._id)}>
+                        <div className="ov-fn">{d.partyName}</div>
+                        <div className="ov-fr">{d.region} · <span style={{ color: TIER_ACCENT[d.tier] }}>{d.tier}</span>{d.noBills ? ' · 💤 ₹0' : ''}</div>
+                        <div className={`ov-fwhy${d.noBills ? ' dorm' : ' risk'}`}>
+                          {d.noBills ? `needs ${fmtMoney(d.floor)} to hold ${d.tier}` : `${fmtMoney(short)} short of ${d.tier}`}
+                        </div>
+                      </button>
+                      {open && <div className="ov-drill ov-focus-drill"><DealerCard userId={d._id} /></div>}
+                    </Fragment>
                   );
                 })}
               </div>
-              {focusDealer && <div className="ov-drill"><DealerCard userId={focusDealer} /></div>}
             </div>
           )}
 

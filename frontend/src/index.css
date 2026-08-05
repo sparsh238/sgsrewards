@@ -2107,3 +2107,6 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .dc-lmain .t-mono { font-size: 12.5px; }
 .dc-lmain .hint { font-size: 11.5px; }
 .dc-lmeta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; font-size: 12.5px; }
+
+/* Chase-today detail opens right under the tapped card, full width */
+.ov-focus-cards > .ov-focus-drill { grid-column: 1 / -1; }
