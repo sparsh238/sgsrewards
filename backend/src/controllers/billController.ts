@@ -79,6 +79,11 @@ export const addBill = async (req: Request, res: Response) => {
 export const getUserBills = async (req: Request, res: Response) => {
     try {
         const filter: Record<string, unknown> = { userId: req.user._id };
+        // Relaunch: the DEALER only sees bills from the relaunch month onward
+        // (July 2026). Older legacy/seed bills still count toward their points
+        // balance (merge), but are hidden from the dealer's bill list. Admins use
+        // getAllBills and still see everything.
+        filter.period = { $gte: process.env.RELAUNCH_PERIOD || '2026-07' };
         // Optional invoice-number search and month filter (period = 'YYYY-MM').
         const search = (req.query.search as string | undefined)?.trim();
         if (search) filter.billNumber = { $regex: search, $options: 'i' };

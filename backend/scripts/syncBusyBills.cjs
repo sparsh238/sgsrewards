@@ -3,16 +3,19 @@
  * Busy -> loyalty bill sync. Runs as a step in the daily pipeline AFTER
  * 06_mongo/load_mongo.py has mirrored Busy into the BI Mongo. Reads CD turnover
  * (electronics categories) from the BI mirror, matches in-scheme loyalty dealers
- * by GSTIN, and upserts ONE `source:'busy'` bill per dealer per month of the
- * CURRENT fiscal quarter — crediting points on top of existing balances (MERGE:
- * legacy points are never touched). Idempotent: re-runs adjust by the delta only,
- * and a month that drops to <=0 has its busy bill reversed + removed.
+ * by GSTIN, and upserts ONE `source:'busy'` bill per REAL Busy invoice (voucher
+ * number `vch_no`) in the CURRENT fiscal quarter — crediting points on top of
+ * existing balances (MERGE: legacy points are never touched). Idempotent: re-runs
+ * adjust by the delta only, and an invoice that disappears / drops to <=0 is
+ * reversed + removed.
  *
  *   node scripts/syncBusyBills.cjs --dry-run     # compute + report, write NOTHING
  *   node scripts/syncBusyBills.cjs               # apply
  *   node scripts/syncBusyBills.cjs --from 2026-07 --to 2026-09
  *
- * Never touches 'manual' bills. Secrets come from env / .env files, never printed.
+ * Only positive (sale) invoices earn — credit-notes/returns are their own negative
+ * vouchers and are skipped (never shown as negative bills). Never touches 'manual'
+ * bills. Secrets come from env / .env files, never printed.
  */
 const fs = require('fs');
 const path = require('path');
@@ -35,12 +38,11 @@ if (!LOY || !BI) { console.error('Missing MONGO_URI or BI_MONGO_URI'); process.e
 const ELEC = ['HA', 'AC', 'AV', 'Deep Freezer', 'Mattress', 'Cooler', 'Chimney', 'Geyser', 'IT', 'Accessory'];
 const GST_RX = /^\d{2}[A-Z0-9]{13}$/;
 
-// Current fiscal quarter as an inclusive list of YYYY-MM. The Indian FY (Apr–Mar)
-// is shifted by exactly one quarter, so its month groupings match the calendar
-// quarters — the quarter-start month is simply floor(month/3)*3.
+// Current fiscal quarter as YYYY-MM list. Indian FY (Apr–Mar) is shifted by exactly
+// one quarter, so its month groupings match calendar quarters: start = floor(m/3)*3.
 function currentQuarterPeriods(now = new Date()) {
   const y = now.getUTCFullYear();
-  const s = Math.floor(now.getUTCMonth() / 3) * 3; // 0-indexed quarter start month
+  const s = Math.floor(now.getUTCMonth() / 3) * 3;
   return [0, 1, 2].map((i) => `${y}-${String(s + i + 1).padStart(2, '0')}`);
 }
 
@@ -50,26 +52,28 @@ const pointsForBill = (amount, tier, conv) => {
   if (!rate || rate <= 0) return 0;
   return Math.ceil(amount / rate);
 };
-const monthLabel = (p) => { const [y, m] = p.split('-').map(Number); return `${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m - 1]}-${y}`; };
 
 (async () => {
-  const from = argVal('--from');
-  const to = argVal('--to');
+  const from = argVal('--from'), to = argVal('--to');
   let periods = currentQuarterPeriods();
-  if (from && to) { periods = periods.filter(() => false); const [fy, fm] = from.split('-').map(Number); const [ty, tm] = to.split('-').map(Number); for (let y = fy, mo = fm; y < ty || (y === ty && mo <= tm); mo++) { if (mo > 12) { mo = 1; y++; } periods.push(`${y}-${String(mo).padStart(2, '0')}`); } }
-  const pMin = periods[0], pMax = periods[periods.length - 1];
-  console.log(`Busy->loyalty sync ${DRY ? '(DRY RUN — no writes)' : '(LIVE)'} | quarter ${pMin}..${pMax}`);
+  if (from && to) { periods = []; const [fy] = from.split('-').map(Number); let y = fy, mo = Number(from.split('-')[1]); const [ty, tm] = to.split('-').map(Number); while (y < ty || (y === ty && mo <= tm)) { periods.push(`${y}-${String(mo).padStart(2, '0')}`); mo++; if (mo > 12) { mo = 1; y++; } } }
+  console.log(`Busy->loyalty sync ${DRY ? '(DRY RUN — no writes)' : '(LIVE)'} | quarter ${periods[0]}..${periods[periods.length - 1]} | per-invoice`);
 
   const bi = await mongoose.createConnection(BI, { dbName: BIDB }).asPromise();
   const T = bi.db.collection('transactions'), D = bi.db.collection('dealers');
   const dealers = await D.find({}, { projection: { dealer: 1, gstin: 1, _id: 0 } }).toArray();
   const dealerGst = new Map(dealers.filter((d) => d.gstin).map((d) => [d.dealer, String(d.gstin).toUpperCase().trim()]));
+  // One row per (dealer, voucher, month): CD sum of the electronics lines + invoice date.
   const agg = await T.aggregate([
-    { $match: { period: { $in: periods }, category: { $in: ELEC } } },
-    { $group: { _id: { dealer: '$dealer', period: '$period' }, cd: { $sum: '$signed_value' } } },
+    { $match: { period: { $in: periods }, category: { $in: ELEC }, vch_no: { $nin: [null, '', 'NA'] } } },
+    { $group: { _id: { dealer: '$dealer', vch: '$vch_no', period: '$period' }, cd: { $sum: '$signed_value' }, date: { $max: '$date_dt' } } },
   ]).toArray();
-  const byGstPeriod = new Map(); // `${gst}|${period}` -> amount
-  for (const a of agg) { const g = dealerGst.get(a._id.dealer); if (!g) continue; const k = `${g}|${a._id.period}`; byGstPeriod.set(k, (byGstPeriod.get(k) || 0) + a.cd); }
+  // gstin -> [ {vch, period, cd, date} ]
+  const invByGst = new Map();
+  for (const a of agg) {
+    const g = dealerGst.get(a._id.dealer); if (!g) continue;
+    (invByGst.get(g) || invByGst.set(g, []).get(g)).push({ vch: String(a._id.vch), period: a._id.period, cd: Math.round(a.cd), date: a.date });
+  }
   await bi.close();
 
   const lc = await mongoose.createConnection(LOY).asPromise();
@@ -81,39 +85,42 @@ const monthLabel = (p) => { const [y, m] = p.split('-').map(Number); return `${[
   const sample = [];
   for (const u of users) {
     const g = String(u.gstin).toUpperCase().trim();
+    const invoices = (invByGst.get(g) || []).filter((iv) => iv.cd > 0); // positive sale invoices only
+    // existing busy bills for this user in-window, keyed by voucher|period
+    const existing = new Map((await B.find({ userId: u._id, source: 'busy', period: { $in: periods } }).toArray()).map((b) => [`${b.billNumber}|${b.period}`, b]));
+    const seen = new Set();
     let userPts = 0, touched = false;
-    // existing busy bills for this user in-window, keyed by period
-    const existing = new Map((await B.find({ userId: u._id, source: 'busy', period: { $in: periods } }).toArray()).map((b) => [b.period, b]));
-    for (const period of periods) {
-      const amount = Math.round(byGstPeriod.get(`${g}|${period}`) || 0);
-      const ex = existing.get(period);
-      if (amount > 0) {
-        const pts = pointsForBill(amount, u.tier, conv);
-        if (!ex) {
-          if (!DRY) {
-            await B.insertOne({ userId: u._id, billNumber: `Busy ${monthLabel(period)}`, billDate: new Date(`${period}-01T00:00:00Z`), billAmount: amount, pointsAwarded: pts, tierAtBill: u.tier, period, source: 'busy' });
-            if (pts > 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $add: ['$availablePoints', pts] }] }, totalPoints: { $max: [0, { $add: ['$totalPoints', pts] }] } } }]);
-          }
-          created++; ptsDelta += pts; userPts += pts; touched = true;
-        } else if (ex.billAmount !== amount) {
-          const delta = pts - (typeof ex.pointsAwarded === 'number' ? ex.pointsAwarded : 0);
-          if (!DRY) {
-            await B.updateOne({ _id: ex._id }, { $set: { billAmount: amount, pointsAwarded: pts, tierAtBill: u.tier } });
-            if (delta !== 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $add: ['$availablePoints', delta] }] }, totalPoints: { $max: [0, { $add: ['$totalPoints', delta] }] } } }]);
-          }
-          updated++; ptsDelta += delta; userPts += delta; touched = true;
-        } else { unchanged++; }
-      } else if (ex) {
-        // month dropped to <=0: reverse the busy bill's points and remove it
-        const back = typeof ex.pointsAwarded === 'number' ? ex.pointsAwarded : 0;
+    for (const iv of invoices) {
+      const key = `${iv.vch}|${iv.period}`; seen.add(key);
+      const pts = pointsForBill(iv.cd, u.tier, conv);
+      const ex = existing.get(key);
+      const billDate = iv.date instanceof Date ? iv.date : new Date(`${iv.period}-01T00:00:00Z`);
+      if (!ex) {
         if (!DRY) {
-          if (back > 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $subtract: ['$availablePoints', back] }] }, totalPoints: { $max: [0, { $subtract: ['$totalPoints', back] }] } } }]);
-          await B.deleteOne({ _id: ex._id });
+          await B.insertOne({ userId: u._id, billNumber: iv.vch, billDate, billAmount: iv.cd, pointsAwarded: pts, tierAtBill: u.tier, period: iv.period, source: 'busy' });
+          if (pts > 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $add: ['$availablePoints', pts] }] }, totalPoints: { $max: [0, { $add: ['$totalPoints', pts] }] } } }]);
         }
-        removed++; ptsDelta -= back; userPts -= back; touched = true;
-      }
+        created++; ptsDelta += pts; userPts += pts; touched = true;
+      } else if (ex.billAmount !== iv.cd) {
+        const delta = pts - (typeof ex.pointsAwarded === 'number' ? ex.pointsAwarded : 0);
+        if (!DRY) {
+          await B.updateOne({ _id: ex._id }, { $set: { billAmount: iv.cd, pointsAwarded: pts, tierAtBill: u.tier, billDate } });
+          if (delta !== 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $add: ['$availablePoints', delta] }] }, totalPoints: { $max: [0, { $add: ['$totalPoints', delta] }] } } }]);
+        }
+        updated++; ptsDelta += delta; userPts += delta; touched = true;
+      } else { unchanged++; }
     }
-    if (touched) { dealersAffected++; if (userPts !== 0) sample.push({ name: u.partyName, tier: u.tier, pts: userPts }); }
+    // invoices that vanished (voided / no longer in window) -> reverse + remove
+    for (const [key, ex] of existing) {
+      if (seen.has(key)) continue;
+      const back = typeof ex.pointsAwarded === 'number' ? ex.pointsAwarded : 0;
+      if (!DRY) {
+        if (back > 0) await U.updateOne({ _id: u._id }, [{ $set: { availablePoints: { $max: [0, { $subtract: ['$availablePoints', back] }] }, totalPoints: { $max: [0, { $subtract: ['$totalPoints', back] }] } } }]);
+        await B.deleteOne({ _id: ex._id });
+      }
+      removed++; ptsDelta -= back; userPts -= back; touched = true;
+    }
+    if (touched) { dealersAffected++; if (userPts !== 0) sample.push({ name: u.partyName, tier: u.tier, pts: userPts, inv: invoices.length }); }
   }
 
   sample.sort((a, b) => b.pts - a.pts);
@@ -121,7 +128,7 @@ const monthLabel = (p) => { const [y, m] = p.split('-').map(Number); return `${[
   console.log(`bills  created ${created} | updated ${updated} | unchanged ${unchanged} | removed ${removed}`);
   console.log(`points ${ptsDelta >= 0 ? '+' : ''}${ptsDelta.toLocaleString('en-IN')} (net, added on top of existing balances)`);
   console.log(`\ntop 15 dealers by points ${DRY ? 'that would be added' : 'added'}:`);
-  sample.slice(0, 15).forEach((r) => console.log(`   ${r.name.slice(0, 34).padEnd(35)} ${String(r.tier).padEnd(9)} ${r.pts >= 0 ? '+' : ''}${r.pts} pts`));
+  sample.slice(0, 15).forEach((r) => console.log(`   ${r.name.slice(0, 34).padEnd(35)} ${String(r.tier).padEnd(9)} ${r.pts >= 0 ? '+' : ''}${r.pts} pts  (${r.inv} invoices)`));
   if (DRY) console.log('\nDRY RUN — nothing was written.');
   await lc.close();
 })().catch((e) => { console.error('ERR', e.message); process.exit(1); });
