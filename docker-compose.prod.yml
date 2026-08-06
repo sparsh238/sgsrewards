@@ -1,0 +1,19 @@
+# SGS Rewards — PRODUCTION. Its own container/dir/port, fronted by the root domain
+# (sgsrewards.in) via a CloudPanel reverse proxy. One container serves the API + SPA.
+# Secrets come from .env.prod (lives only on the VPS, never synced/committed).
+services:
+  loyalty-prod:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: loyalty-prod:latest
+    container_name: loyalty-prod
+    restart: unless-stopped
+    env_file: .env.prod
+    environment:
+      SERVE_STATIC: "true"
+      CLIENT_DIR: /app/public
+      PORT: "3000"
+    # Bound to localhost only; CloudPanel reverse-proxy fronts it with HTTPS.
+    ports:
+      - "127.0.0.1:8091:3000"
