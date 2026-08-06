@@ -236,8 +236,6 @@ export default function OverviewScreen() {
             const onTrack = r.dealers.filter((d) => !d.noBills && (d.status === 'holds' || d.status === 'promoting'));
             const promoting = onTrack.filter((d) => d.status === 'promoting');
             const holds = onTrack.filter((d) => d.status === 'holds');
-            const otKey = `${r.region}:onTrack`;
-            const showOT = filter !== 'all' || groupOpen(otKey);
             return (
               <div className="ov-region" key={r.region}>
                 <button className={`ov-rh${isOpen(r.region) ? ' open' : ''}`} onClick={() => toggle(r.region)}>
@@ -267,19 +265,10 @@ export default function OverviewScreen() {
                       </>
                     )}
                     {onTrack.length > 0 && (
-                      filter === 'all' ? (
-                        showOT ? (
-                          <>
-                            <div className="ov-grp ok">— On track · <b>{onTrack.length}</b> · {promoting.length} promoting, {holds.length} holding
-                              <button className="ov-grp-collapse" onClick={() => toggleGroup(otKey)}><Chevron sm open /> hide</button></div>
-                            <Group region={r.region} gkey="onTrack" dealers={onTrack} />
-                          </>
-                        ) : (
-                          <button className="ov-collapsed" onClick={() => toggleGroup(otKey)}><Chevron sm /> Show <b>{onTrack.length} on track</b> — {promoting.length} promoting, {holds.length} holding</button>
-                        )
-                      ) : (
+                      <>
+                        <div className="ov-grp ok">— On track · <b>{onTrack.length}</b> · {promoting.length} promoting, {holds.length} holding</div>
                         <Group region={r.region} gkey="onTrack" dealers={onTrack} />
-                      )
+                      </>
                     )}
                   </div>
                 )}
