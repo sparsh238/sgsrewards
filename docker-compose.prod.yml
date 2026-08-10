@@ -17,3 +17,7 @@ services:
     # Bound to localhost only; CloudPanel reverse-proxy fronts it with HTTPS.
     ports:
       - "127.0.0.1:8091:3000"
+    # Uploaded reward images live on the host so they survive image rebuilds
+    # (the image itself excludes backend/uploads). Served at /uploads.
+    volumes:
+      - ./uploads:/app/uploads
