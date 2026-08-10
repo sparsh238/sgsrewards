@@ -5,6 +5,7 @@ import { formatNumber } from '../../lib/format';
 import { TIER_ACCENT, TIER_ORDER, tierTargetLines, type Tier } from '../../lib/tier';
 import SearchInput from '../../components/SearchInput';
 import Chevron from '../../components/Chevron';
+import { matchesSearch } from '../../lib/search';
 import DealerCard from './DealerCard';
 
 type Status = 'promoting' | 'holds' | 'atRisk';
@@ -81,7 +82,7 @@ export default function OverviewScreen() {
   const regions = useMemo(() => {
     if (!data) return [];
     return data.regions
-      .map((r) => ({ ...r, dealers: r.dealers.filter((d) => (!q || d.partyName.toLowerCase().includes(q)) && matchesFilter(d)) }))
+      .map((r) => ({ ...r, dealers: r.dealers.filter((d) => (!q || matchesSearch(d.partyName, query)) && matchesFilter(d)) }))
       .filter((r) => r.dealers.length > 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, q, filter]);

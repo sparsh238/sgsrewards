@@ -4,6 +4,7 @@ import { useAuth } from '../../lib/auth';
 import { useToast } from '../../lib/toast';
 import { formatDate, formatNumber } from '../../lib/format';
 import SearchInput from '../../components/SearchInput';
+import { matchesSearch } from '../../lib/search';
 import DealerCard from './DealerCard';
 
 interface AdminOrder {
@@ -54,9 +55,9 @@ export default function Orders() {
     return orders.filter((o) => {
       if (filter !== 'All' && o.status !== filter) return false;
       if (!q) return true;
-      return o.orderIdAlias.toLowerCase().includes(q)
-        || (o.userId?.partyName ?? '').toLowerCase().includes(q)
-        || (o.userId?.phoneNumber ?? '').includes(q);
+      return matchesSearch(o.orderIdAlias, query)
+        || matchesSearch(o.userId?.partyName ?? '', query)
+        || matchesSearch(o.userId?.phoneNumber ?? '', query);
     });
   }, [orders, query, filter]);
 

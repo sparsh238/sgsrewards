@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { Tier } from '../lib/tier';
+import { matchesSearch } from '../lib/search';
 
 export interface PickDealer { _id: string; username: string; partyName: string; tier: Tier; region?: string }
 
@@ -28,9 +29,8 @@ export default function DealerPicker({ dealers, value, onChange, autoFocus }: {
 
   const CAP = 60;
   const { results, total } = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    const list = !s ? dealers : dealers.filter((d) =>
-      d.partyName.toLowerCase().includes(s) || d.username.toLowerCase().includes(s) || (d.region ?? '').toLowerCase().includes(s));
+    const list = !q.trim() ? dealers : dealers.filter((d) =>
+      matchesSearch(d.partyName, q) || matchesSearch(d.username, q) || matchesSearch(d.region ?? '', q));
     return { results: list.slice(0, CAP), total: list.length };
   }, [dealers, q]);
 

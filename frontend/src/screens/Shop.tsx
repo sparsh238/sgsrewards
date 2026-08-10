@@ -4,6 +4,7 @@ import { apiJson } from '../lib/api';
 import { formatNumber } from '../lib/format';
 import { itemPrice, type Item } from '../lib/types';
 import ItemCard, { rewardState } from '../components/ItemCard';
+import { matchesSearch } from '../lib/search';
 
 type Filter = 'all' | 'qualified' | 'goal';
 type SortDir = 'asc' | 'desc';
@@ -39,9 +40,8 @@ export default function Shop() {
   }, []);
 
   const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
     const sorted = [...(items ?? [])]
-      .filter((it) => !q || it.name.toLowerCase().includes(q))
+      .filter((it) => matchesSearch(it.name, query))
       .sort((a, b) => (sortDir === 'asc' ? itemPrice(a) - itemPrice(b) : itemPrice(b) - itemPrice(a)));
     const qualified: Item[] = [], goal: Item[] = [], unavailable: Item[] = [];
     for (const it of sorted) {

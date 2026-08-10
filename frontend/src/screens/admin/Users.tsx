@@ -8,6 +8,7 @@ import Modal from '../../components/Modal';
 import DealerCard from './DealerCard';
 import SearchInput from '../../components/SearchInput';
 import Chevron from '../../components/Chevron';
+import { matchesSearch } from '../../lib/search';
 
 interface UserRow {
   _id: string;
@@ -106,10 +107,10 @@ export default function Users() {
     return base.filter((u) => {
       if (tab === 'dealers' && tierFilter !== 'All' && u.tier !== tierFilter) return false;
       if (!q) return true;
-      return u.partyName.toLowerCase().includes(q)
-        || (u.phoneNumber ?? '').includes(q)
-        || (u.gstin ?? '').toLowerCase().includes(q)
-        || `${u.firstName ?? ''} ${u.lastName ?? ''}`.toLowerCase().includes(q);
+      return matchesSearch(u.partyName, query)
+        || matchesSearch(u.phoneNumber ?? '', query)
+        || matchesSearch(u.gstin ?? '', query)
+        || matchesSearch(`${u.firstName ?? ''} ${u.lastName ?? ''}`, query);
     });
   }, [tab, scoped, staff, tierFilter, query]);
 

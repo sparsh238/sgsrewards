@@ -4,6 +4,7 @@ import { useToast } from '../../lib/toast';
 import { TIER_ACCENT, type Tier } from '../../lib/tier';
 import SearchInput from '../../components/SearchInput';
 import DealerCard from './DealerCard';
+import { matchesSearch } from '../../lib/search';
 
 interface Change {
   userId: string;
@@ -61,13 +62,12 @@ export default function TierReview() {
   );
   const visible = useMemo(() => {
     const list = review?.changes ?? [];
-    const needle = q.trim().toLowerCase();
     return list.filter((c) => {
       if (regionF !== 'All' && (c.region || '') !== regionF) return false;
       if (dirF === 'new' && !c.isNewEntrant) return false;
       if (dirF === 'up' && (c.isNewEntrant || c.direction !== 'up')) return false;
       if (dirF === 'down' && c.direction !== 'down') return false;
-      if (needle && !c.partyName.toLowerCase().includes(needle)) return false;
+      if (q.trim() && !matchesSearch(c.partyName, q)) return false;
       return true;
     });
   }, [review, regionF, dirF, q]);
