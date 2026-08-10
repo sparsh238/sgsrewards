@@ -171,6 +171,7 @@ button:focus-visible, a:focus-visible, input:focus-visible {
   width: 100%;
 }
 .input::placeholder { color: var(--muted); }
+.input:disabled { opacity: 0.55; cursor: not-allowed; background: var(--panel-raised); }
 
 /* ---------- Status / feedback ---------- */
 .error-banner {

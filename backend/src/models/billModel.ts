@@ -33,7 +33,10 @@ const BillSchema: Schema = new Schema({
     period: { type: String, default: '', index: true },
     // Where the bill came from: 'manual' (admin-entered) or 'busy' (daily Busy
     // push sync). The sync only ever touches its own 'busy' bills — manual bills
-    // are never clobbered. One 'busy' bill per (userId, period).
+    // are never clobbered. One 'busy' bill per (userId, billNumber, period), where
+    // billNumber is the Busy voucher number — i.e. one bill per real invoice, not
+    // one per month. billDate is the actual invoice date, falling back to
+    // `${period}-01` when the voucher carries no date.
     source: { type: String, default: 'manual', index: true },
     // Admin took manual control of a synced bill (edited it). The Busy sync then
     // leaves it entirely alone — it won't overwrite the amount/points or reverse

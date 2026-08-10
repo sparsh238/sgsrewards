@@ -268,6 +268,11 @@ function BillModal({ mode, bill, dealers, conv, onClose, onSaved }: {
   const [busy, setBusy] = useState(false);
   const { toast, toastError } = useToast();
 
+  // Editing a synced (Busy) bill: pin the invoice number + date so the daily
+  // sync can always re-match this locked bill by (billNumber|period) and never
+  // re-insert a duplicate. Only the amount stays editable.
+  const isBusyEdit = mode === 'edit' && (bill?.source ?? 'manual') === 'busy';
+
   // In edit mode the dealer/tier comes from the bill; in add mode from the picker.
   const tier: Tier | undefined = mode === 'edit'
     ? bill?.userId?.tier
@@ -302,9 +307,9 @@ function BillModal({ mode, bill, dealers, conv, onClose, onSaved }: {
       ) : (
         <>
           <p className="hint">Dealer: <b>{bill?.userId?.partyName}</b> · {bill?.userId?.tier ?? 'No tier'}</p>
-          {(bill?.source ?? 'manual') === 'busy' && !bill?.locked && (
+          {(bill?.source ?? 'manual') === 'busy' && (
             <p className="hint" style={{ color: 'var(--warn, #d9a441)' }}>
-              This is a synced Busy bill. Saving an edit takes it under manual control — the daily sync will stop updating it.
+              Synced Busy bill — you can correct the <b>amount</b>. The invoice number and date are locked so the daily sync keeps matching it (no duplicates). Saving takes its points under manual control.
             </p>
           )}
         </>
@@ -312,12 +317,12 @@ function BillModal({ mode, bill, dealers, conv, onClose, onSaved }: {
 
       <div className="form-grid">
         <div className="field">
-          <label htmlFor="bn">Bill number</label>
-          <input id="bn" className="input" value={billNumber} onChange={(e) => setBillNumber(e.target.value)} />
+          <label htmlFor="bn">Bill number {isBusyEdit && <span className="hint">· locked</span>}</label>
+          <input id="bn" className="input" value={billNumber} onChange={(e) => setBillNumber(e.target.value)} disabled={isBusyEdit} title={isBusyEdit ? "Synced invoice number can't be changed" : undefined} />
         </div>
         <div className="field">
-          <label htmlFor="bd">Bill date</label>
-          <input id="bd" className="input" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} />
+          <label htmlFor="bd">Bill date {isBusyEdit && <span className="hint">· locked</span>}</label>
+          <input id="bd" className="input" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} disabled={isBusyEdit} title={isBusyEdit ? "Synced bill date can't be changed" : undefined} />
         </div>
         <div className="field full">
           <label htmlFor="ba">Bill amount (₹)</label>

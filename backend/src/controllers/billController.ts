@@ -233,14 +233,20 @@ export const editBill = async (req: Request, res: Response) => {
             await adjustUserPoints(user._id, pointsDifference, pointsDifference);
         }
 
-        bill.billNumber = billNumber;
-        bill.billDate = billDate;
         bill.billAmount = billAmount;
         bill.pointsAwarded = newPoints;
-        bill.period = toPeriod(billDate);
-        // Editing a synced bill hands manual control to the admin: the Busy sync
-        // must stop reconciling it, or it would revert this edit on the next run.
-        if (bill.source === 'busy') bill.locked = true;
+        if (bill.source === 'busy') {
+            // Synced bill: hand manual control to the admin (`locked` stops the Busy
+            // sync from reverting the edit), and PIN the invoice number + date +
+            // period. The sync re-matches bills by (billNumber|period); letting an
+            // edit move that key would leave the original voucher unmatched and the
+            // sync would re-insert it as a duplicate. Only the amount is editable.
+            bill.locked = true;
+        } else {
+            bill.billNumber = billNumber;
+            bill.billDate = billDate;
+            bill.period = toPeriod(billDate);
+        }
         await bill.save();
 
         res.status(200).json(bill);
