@@ -154,8 +154,15 @@ export const getAllBills = async (req: Request, res: Response) => {
         const post: Record<string, unknown> = {};
         if (region) post['user.region'] = region;
         if (search) {
-            const rx = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-            post.$or = [{ billNumber: rx }, { 'user.partyName': rx }, { 'user.phoneNumber': rx }];
+            // Whitespace- and case-insensitive: strip spaces from the query and allow
+            // any spacing between characters in the stored value, so "sapnatrunk",
+            // "sapna trunk" and "SAPNA  TRUNK" all match "Sapna Trunk And Electronics".
+            const cleaned = search.replace(/\s+/g, '');
+            if (cleaned) {
+                const fuzzy = cleaned.split('').map((ch) => ch.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\s*');
+                const rx = new RegExp(fuzzy, 'i');
+                post.$or = [{ billNumber: rx }, { 'user.partyName': rx }, { 'user.phoneNumber': rx }];
+            }
         }
 
         const [result] = await Bill.aggregate([
