@@ -1877,6 +1877,16 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
   background: #221c10; padding: 1px 6px; border-radius: 10px; margin-left: 8px; vertical-align: middle; text-transform: uppercase; letter-spacing: .04em;
   display: inline-block; white-space: nowrap; }
 
+/* Sales tab hierarchy: Sales Head rows with nested salespersons */
+.sales-head-row > td { border-top: 1px solid var(--hairline); }
+.sales-head-row .ro-tag { margin-left: 8px; }
+.sales-group-row > td { background: rgba(255,255,255,0.02); font-weight: 600; }
+.sales-rep-row > td { background: rgba(255,255,255,0.015); }
+.sales-rep-row > td:first-child { padding-left: 44px; }
+.sales-rep-name { position: relative; }
+.sales-rep-name::before { content: ''; position: absolute; left: -16px; top: 50%; width: 8px; height: 1px; background: var(--faint, #5D6675); }
+@media (max-width: 720px) { .sales-rep-row > td:first-child { padding-left: 12px; } .sales-rep-name::before { display: none; } }
+
 /* ---- Admin calendar ---- */
 .cal-wrap { border: 1px solid var(--hairline); border-radius: var(--radius); background: var(--panel); overflow: hidden; }
 .cal-monthhead { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--hairline); }

@@ -81,7 +81,22 @@ export default function Users() {
   const staff = useMemo(() => (users ?? []).filter((u) => u.userType === 'admin' || u.userType === 'superadmin'), [users]);
   const salespeople = useMemo(() => (users ?? []).filter((u) => u.userType === 'sales'), [users]);
   const salesHeads = useMemo(() => salespeople.filter((u) => u.salesReadOnly).map((u) => ({ username: u.username, partyName: u.partyName })), [salespeople]);
-  const headName = (uname?: string) => salespeople.find((s) => s.username === uname)?.partyName ?? uname;
+
+  // Sales tab is grouped as a hierarchy: each Sales Head, then the salespersons
+  // who report to them; reps with no (valid) head fall into an "Unassigned" group.
+  const salesHierarchy = useMemo(() => {
+    const heads = salespeople.filter((u) => u.salesReadOnly);
+    const reps = salespeople.filter((u) => !u.salesReadOnly);
+    const headSet = new Set(heads.map((h) => h.username));
+    const groups: { head: UserRow | null; reps: UserRow[] }[] =
+      heads.map((h) => ({ head: h, reps: reps.filter((r) => r.salesHead === h.username) }));
+    const unassigned = reps.filter((r) => !r.salesHead || !headSet.has(r.salesHead));
+    if (unassigned.length) groups.push({ head: null, reps: unassigned });
+    return groups;
+  }, [salespeople]);
+  const [collapsedHeads, setCollapsedHeads] = useState<Set<string>>(new Set());
+  const headOpen = (u: string) => !collapsedHeads.has(u);
+  const toggleHead = (u: string) => setCollapsedHeads((s) => { const n = new Set(s); n.has(u) ? n.delete(u) : n.add(u); return n; });
   const isActive = (u: UserRow) => u.inScheme !== false;
   const regions = useMemo(() => [...new Set(dealers.map((u) => u.region).filter(Boolean) as string[])].sort(), [dealers]);
 
@@ -169,22 +184,40 @@ export default function Users() {
           <table className="data">
             <thead><tr><th>Salesperson</th><th>Username</th><th>Role</th><th>Areas</th><th>Access</th><th></th></tr></thead>
             <tbody>
-              {salespeople.map((u) => (
-                <tr key={u._id}>
-                  <td className="t-strong" data-label="Salesperson">{u.partyName}</td>
-                  <td className="hint t-mono" data-label="Username">{u.username}</td>
-                  <td data-label="Role">
-                    {u.salesReadOnly ? <span className="ro-tag">Sales Head</span> : 'Salesperson'}
-                    {!u.salesReadOnly && u.salesHead && <div className="hint">under {headName(u.salesHead)}</div>}
-                  </td>
-                  <td className="hint" data-label="Areas">{(u.salesAreas ?? []).join(', ') || '—'}</td>
-                  <td data-label="Access"><button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} /></td>
-                  <td className="cell-actions"><div className="t-actions">
-                    <button className="mini-btn" onClick={() => setEditSalesFor(u)}>Edit</button>
-                    <button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button>
-                  </div></td>
-                </tr>
-              ))}
+              {salesHierarchy.map(({ head, reps }) => {
+                const open = head ? headOpen(head.username) : true;
+                const access = (u: UserRow) => <button className={`switch${u.blocked ? '' : ' on'}`} role="switch" aria-checked={!u.blocked} aria-label={`${u.partyName} access`} onClick={() => toggleBlock(u)} />;
+                const actions = (u: UserRow) => <div className="t-actions"><button className="mini-btn" onClick={() => setEditSalesFor(u)}>Edit</button><button className="mini-btn" onClick={() => setResetFor(u)}>Reset password</button></div>;
+                return (
+                <Fragment key={head ? head._id : 'unassigned'}>
+                  {head ? (
+                    <tr className="sales-head-row">
+                      <td className="t-strong" data-label="Salesperson">
+                        <button className="caret-btn" aria-label={open ? 'Collapse' : 'Expand'} aria-expanded={open} onClick={() => toggleHead(head.username)}><Chevron open={open} /></button>
+                        {head.partyName}<span className="ro-tag">Sales Head</span>
+                      </td>
+                      <td className="hint t-mono" data-label="Username">{head.username}</td>
+                      <td className="hint" data-label="Role">{reps.length} salesperson{reps.length === 1 ? '' : 's'}</td>
+                      <td className="hint" data-label="Areas">{(head.salesAreas ?? []).join(', ') || '—'}</td>
+                      <td data-label="Access">{access(head)}</td>
+                      <td className="cell-actions">{actions(head)}</td>
+                    </tr>
+                  ) : (
+                    <tr className="sales-group-row"><td colSpan={6} className="hint">Unassigned · no sales head <b>{reps.length}</b></td></tr>
+                  )}
+                  {open && reps.map((u) => (
+                    <tr key={u._id} className="sales-rep-row">
+                      <td data-label="Salesperson"><span className="sales-rep-name">{u.partyName}</span></td>
+                      <td className="hint t-mono" data-label="Username">{u.username}</td>
+                      <td className="hint" data-label="Role">Salesperson</td>
+                      <td className="hint" data-label="Areas">{(u.salesAreas ?? []).join(', ') || '—'}</td>
+                      <td data-label="Access">{access(u)}</td>
+                      <td className="cell-actions">{actions(u)}</td>
+                    </tr>
+                  ))}
+                </Fragment>
+                );
+              })}
               {salespeople.length === 0 && <tr><td colSpan={6} className="hint" style={{ textAlign: 'center', padding: 30 }}>No salespeople yet — add one to get started.</td></tr>}
             </tbody>
           </table>
