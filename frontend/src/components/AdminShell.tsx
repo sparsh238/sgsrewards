@@ -32,6 +32,7 @@ export default function AdminShell() {
         <div className="admin-role">{roleLabel}</div>
         {link(base, 'Overview')}
         {link(`${base}/users`, isSales ? 'Dealers' : 'Users')}
+        {isSales && auth.salesReadOnly && link(`${base}/team`, 'Team')}
         {link(`${base}/orders`, 'Orders')}
         {link(`${base}/bills`, 'Bills')}
         {!isSales && link(`${base}/items`, 'Rewards')}

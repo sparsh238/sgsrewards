@@ -164,6 +164,47 @@ const getUsers = async (req: Request, res: Response) => {
   }
 };
 
+// A Sales Head's team: the salespersons who report to them (salesHead === their
+// username), each with a count of the dealers in that rep's scheme scope. Only
+// sales heads have a team — everyone else gets an empty list.
+const getTeam = async (req: Request, res: Response) => {
+  try {
+    const me = req.user as { userType?: string; salesReadOnly?: boolean; username?: string };
+    if (!isSales(me) || !me.salesReadOnly) return res.send([]);
+    const reps = await User.find({ userType: 'sales', salesReadOnly: { $ne: true }, salesHead: me.username })
+      .select('partyName username salesAreas salesRegions salesBooks blocked')
+      .sort({ partyName: 1 });
+    const team = await Promise.all(reps.map(async (r) => ({
+      _id: r._id,
+      partyName: r.partyName,
+      username: r.username,
+      salesAreas: r.salesAreas ?? [],
+      blocked: !!r.blocked,
+      dealerCount: await User.countDocuments({ userType: 'customer', ...salesUserFilter(r) }),
+    })));
+    res.send(team);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+};
+
+// The dealers covered by one of the requesting head's salespersons. Guarded:
+// the target rep must actually report to the logged-in head.
+const getTeamDealers = async (req: Request, res: Response) => {
+  try {
+    const me = req.user as { userType?: string; salesReadOnly?: boolean; username?: string };
+    if (!isSales(me) || !me.salesReadOnly) return res.status(403).send({ error: 'Sales heads only' });
+    const rep = await User.findOne({ _id: req.params.repId, userType: 'sales' });
+    if (!rep || rep.salesHead !== me.username) return res.status(404).send({ error: 'Not one of your salespersons' });
+    const dealers = await User.find({ userType: 'customer', ...salesUserFilter(rep) })
+      .select('partyName phoneNumber region tier availablePoints inScheme gstin')
+      .sort({ partyName: 1 });
+    res.send(dealers);
+  } catch (error) {
+    res.status(500).send(error);
+  }
+};
+
 // Dealer birthday + anniversary events for the admin calendar. Dates recur every
 // year, so only month/day matter — the frontend places them on any year's grid.
 const getCalendar = async (req: Request, res: Response) => {
@@ -372,4 +413,4 @@ const updateOrderStatus = async (req: Request, res: Response) => {
   }
 };
 
-export { getUsers, getUserById, getDealerSummary, addCustomer, addCustomers, getOrders, getOrderById, updateOrderStatus, getOverview, getCalendar };
+export { getUsers, getUserById, getDealerSummary, addCustomer, addCustomers, getOrders, getOrderById, updateOrderStatus, getOverview, getCalendar, getTeam, getTeamDealers };
