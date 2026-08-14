@@ -55,7 +55,8 @@ export default function Bills() {
   const [modal, setModal] = useState<null | { mode: 'add' } | { mode: 'edit'; bill: BillRow }>(null);
   const { toast, toastError } = useToast();
   const { auth } = useAuth();
-  const isSales = auth.userType === 'sales'; // sales are read-only on bills
+  const isSales = auth.userType === 'sales'; // sales are read-only on bills…
+  const canExclude = !isSales || auth.salesReadOnly; // …except sales HEADS may exclude/include
 
   // Filters + pagination
   const [page, setPage] = useState(1);
@@ -200,12 +201,12 @@ export default function Bills() {
                         {b.excluded && <span className="src-tag excl" title="Disregarded: no points, out of tier turnover">excluded</span>}
                         </div>
                       </td>
-                      {!isSales && (
+                      {canExclude && (
                         <td className="cell-actions">
                           <div className="t-actions">
-                            <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>
+                            {!isSales && <button className="mini-btn" onClick={() => setModal({ mode: 'edit', bill: b })}>Edit</button>}
                             <button className="mini-btn" onClick={() => toggleExclude(b)} title={b.excluded ? 'Credit points again' : 'Award no points for this bill'}>{b.excluded ? 'Include' : 'Exclude'}</button>
-                            <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>
+                            {!isSales && <button className="mini-btn danger" onClick={() => remove(b)}>Delete</button>}
                           </div>
                         </td>
                       )}

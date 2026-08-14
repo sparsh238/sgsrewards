@@ -344,8 +344,12 @@ export const setBillExcluded = async (req: Request, res: Response) => {
         if (!user) {
             return res.status(400).json({ error: 'Invalid user ID' });
         }
-        if (isSales(req.user) && (!canEdit(req.user) || !dealerInScope(req.user, user))) {
-            return res.status(403).json({ error: 'This bill is outside your assigned area' });
+        // Sales HEADS may exclude/include bills for dealers in their area (read-only
+        // reps cannot; admin/superadmin are unrestricted).
+        if (isSales(req.user)) {
+            const su = req.user as { salesReadOnly?: boolean };
+            if (!su.salesReadOnly) return res.status(403).json({ error: 'Only sales heads can exclude bills' });
+            if (!dealerInScope(req.user, user)) return res.status(403).json({ error: 'This bill is outside your assigned area' });
         }
         const earns = (user as { inScheme?: boolean }).inScheme !== false;
 
