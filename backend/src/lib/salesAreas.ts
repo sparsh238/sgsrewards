@@ -19,6 +19,7 @@ export const AREAS: Record<string, { books?: string[]; regions?: string[] }> = {
   'Ajmer': { regions: ['Ajmer'] },
   'Churu': { regions: ['Churu'] },
   'Sikar': { regions: ['Sikar'] },
+  'Jhunjhunu': { regions: ['Jhunjhunu'] },
   'Nagaur': { regions: ['Nagaur'] },
 };
 
