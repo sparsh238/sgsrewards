@@ -1,9 +1,13 @@
 // Daily Spin-the-Wheel config + helpers. Points-only prizes, one spin per
-// calendar day (IST), 10-pt entry, eligible for Basic tier and up (No Tier
-// excluded). The prize weights set the economics; dealers never see the weights.
+// calendar day (IST), eligible for a minimum tier and up. The prize weights set
+// the economics; dealers never see the weights. The LIVE config is stored on the
+// System doc (superadmin-editable) — this file holds the DEFAULT + the helpers.
 export interface SpinSegment { label: string; points: number; weight: number }
+export interface SpinConfig { enabled: boolean; entryFee: number; minTierRank: number; segments: SpinSegment[] }
 
-export const SPIN = {
+// "Neutral" default: average payout ≈ entry (near-zero net liability), with a
+// rare jackpot. Two "Better luck" slices so the common outcome isn't one wedge.
+export const DEFAULT_SPIN: SpinConfig = {
   enabled: true,
   entryFee: 10,
   minTierRank: 1, // Basic and up (NoTier = 0 excluded)
@@ -16,17 +20,32 @@ export const SPIN = {
     { label: '50 points',   points: 50,   weight: 3 },
     { label: '100 points',  points: 100,  weight: 1.7 },
     { label: 'JACKPOT',     points: 1000, weight: 0.3 },
-  ] as SpinSegment[],
+  ],
 };
 
 export const TIER_RANK: Record<string, number> = { NoTier: 0, Basic: 1, Bronze: 2, Silver: 3, Gold: 4, Platinum: 5 };
-export const isSpinEligible = (tier?: string): boolean => SPIN.enabled && (TIER_RANK[tier ?? 'NoTier'] ?? 0) >= SPIN.minTierRank;
+
+// The live config = the System override if it carries a valid segment list,
+// otherwise the default. Scalar fields fall back individually.
+export const effectiveSpin = (override?: Partial<SpinConfig> | null): SpinConfig => {
+  const segs = Array.isArray(override?.segments) && override!.segments.length ? override!.segments : DEFAULT_SPIN.segments;
+  return {
+    enabled: typeof override?.enabled === 'boolean' ? override!.enabled : DEFAULT_SPIN.enabled,
+    entryFee: typeof override?.entryFee === 'number' ? override!.entryFee : DEFAULT_SPIN.entryFee,
+    minTierRank: typeof override?.minTierRank === 'number' ? override!.minTierRank : DEFAULT_SPIN.minTierRank,
+    segments: segs,
+  };
+};
+
+export const eligibleFor = (tier: string | undefined, cfg: SpinConfig): boolean =>
+  cfg.enabled && (TIER_RANK[tier ?? 'NoTier'] ?? 0) >= cfg.minTierRank;
 
 // Weighted random slice index — SERVER-side only, so the outcome can't be gamed.
 export const pickSegment = (segments: SpinSegment[]): number => {
-  const total = segments.reduce((s, x) => s + x.weight, 0);
+  const total = segments.reduce((s, x) => s + Math.max(0, x.weight), 0);
+  if (total <= 0) return 0;
   let r = Math.random() * total;
-  for (let i = 0; i < segments.length; i++) { r -= segments[i].weight; if (r < 0) return i; }
+  for (let i = 0; i < segments.length; i++) { r -= Math.max(0, segments[i].weight); if (r < 0) return i; }
   return segments.length - 1;
 };
 

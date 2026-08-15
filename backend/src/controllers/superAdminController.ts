@@ -6,6 +6,8 @@ import  Bill  from '../models/billModel';
 import OrderModel from '../models/orderModel';
 import { fiscalQuarter } from '../lib/fiscalQuarter';
 import { AREAS, AREA_NAMES, areasToScope } from '../lib/salesAreas';
+import SpinLog from '../models/spinLogModel';
+import { effectiveSpin, istDayStartUtc, type SpinSegment } from '../lib/spinConfig';
 
 const getAllUsers = async (req: Request, res: Response) => {
   try {
@@ -447,4 +449,49 @@ const updateSalesUser = async (req: Request, res: Response) => {
   }
 };
 
-export { getAllUsers, addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer };
+// ---- Daily Spin: prize-table config + audit log ----
+// Config includes the weights (odds) — superadmin-only, never sent to dealers.
+const getSpinConfig = async (_req: Request, res: Response) => {
+  try {
+    const sys = await System.findOne().select('spinWheel');
+    res.send({ ...effectiveSpin(sys?.spinWheel), isDefault: !sys?.spinWheel });
+  } catch (error) {
+    res.status(500).send({ error: 'Could not load spin config' });
+  }
+};
+
+const updateSpinConfig = async (req: Request, res: Response) => {
+  try {
+    const { enabled, entryFee, minTierRank, segments } = req.body as { enabled?: boolean; entryFee?: number; minTierRank?: number; segments?: SpinSegment[] };
+    if (typeof entryFee !== 'number' || entryFee < 0) return res.status(400).send({ error: 'Entry fee must be a non-negative number' });
+    if (!Array.isArray(segments) || segments.length < 2) return res.status(400).send({ error: 'Provide at least two prize slices' });
+    const clean = segments.map((s) => ({ label: String(s.label ?? '').slice(0, 40), points: Math.max(0, Number(s.points) || 0), weight: Math.max(0, Number(s.weight) || 0) }));
+    if (clean.reduce((a, s) => a + s.weight, 0) <= 0) return res.status(400).send({ error: 'Total weight must be greater than zero' });
+    const spinWheel = { enabled: enabled !== false, entryFee, minTierRank: Number(minTierRank) || 1, segments: clean };
+    const sys = await System.findOneAndUpdate({}, { $set: { spinWheel } }, { new: true });
+    if (!sys) return res.status(500).send({ error: 'System configuration not found' });
+    res.send({ ...effectiveSpin(sys.spinWheel), isDefault: false });
+  } catch (error) {
+    res.status(400).send({ error: 'Could not save spin config' });
+  }
+};
+
+const getSpinLog = async (req: Request, res: Response) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page as string, 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(req.query.pageSize as string, 10) || 30));
+    const sum = (m: Record<string, unknown> = {}) => SpinLog.aggregate([{ $match: m }, { $group: { _id: null, spins: { $sum: 1 }, entry: { $sum: '$entryFee' }, paid: { $sum: '$prize' } } }]);
+    const [items, total, allAgg, todayAgg] = await Promise.all([
+      SpinLog.find().sort({ createdAt: -1 }).skip((page - 1) * pageSize).limit(pageSize),
+      SpinLog.countDocuments(),
+      sum(),
+      sum({ createdAt: { $gte: new Date(istDayStartUtc()) } }),
+    ]);
+    const shape = (a?: { spins: number; entry: number; paid: number }) => a ? { spins: a.spins, entry: a.entry, paid: a.paid, net: a.paid - a.entry } : { spins: 0, entry: 0, paid: 0, net: 0 };
+    res.send({ items, total, page, pageSize, stats: shape(allAgg[0]), today: shape(todayAgg[0]) });
+  } catch (error) {
+    res.status(500).send({ error: 'Could not load spin log' });
+  }
+};
+
+export { getAllUsers, addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer, getSpinConfig, updateSpinConfig, getSpinLog };

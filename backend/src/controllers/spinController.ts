@@ -1,10 +1,13 @@
 import { Request, Response } from 'express';
 import User from '../models/userModel';
-import { SPIN, isSpinEligible, pickSegment, istDayStartUtc, nextResetAt } from '../lib/spinConfig';
+import System from '../models/systemModel';
+import SpinLog from '../models/spinLogModel';
+import { effectiveSpin, eligibleFor, pickSegment, istDayStartUtc, nextResetAt, type SpinConfig } from '../lib/spinConfig';
 
-// Slices sent to the client carry only label + points — never the weights (odds
-// stay server-side / admin-only).
-const publicSegments = () => SPIN.segments.map((s) => ({ label: s.label, points: s.points }));
+const loadConfig = async (): Promise<SpinConfig> => {
+  const sys = await System.findOne().select('spinWheel');
+  return effectiveSpin(sys?.spinWheel);
+};
 
 const hasSpunToday = (lastSpinAt?: Date | null): boolean =>
   !!lastSpinAt && new Date(lastSpinAt).getTime() >= istDayStartUtc();
@@ -12,18 +15,21 @@ const hasSpunToday = (lastSpinAt?: Date | null): boolean =>
 // GET /api/spin/status — what the teaser + wheel screen render off.
 export const getSpinStatus = async (req: Request, res: Response) => {
   try {
-    const user = await User.findById((req.user as { _id: unknown })._id).select('tier availablePoints lastSpinAt lastSpinPoints');
+    const [user, cfg] = await Promise.all([
+      User.findById((req.user as { _id: unknown })._id).select('tier availablePoints lastSpinAt lastSpinPoints'),
+      loadConfig(),
+    ]);
     if (!user) return res.status(404).send({ error: 'User not found' });
-    const eligible = isSpinEligible(user.tier);
+    const eligible = eligibleFor(user.tier, cfg);
     const spunToday = hasSpunToday(user.lastSpinAt);
     res.send({
-      enabled: SPIN.enabled,
+      enabled: cfg.enabled,
       eligible,
-      entryFee: SPIN.entryFee,
+      entryFee: cfg.entryFee,
       balance: user.availablePoints,
-      canSpin: eligible && !spunToday && user.availablePoints >= SPIN.entryFee,
-      reason: !eligible ? 'ineligible' : spunToday ? 'spun-today' : user.availablePoints < SPIN.entryFee ? 'low-balance' : null,
-      segments: publicSegments(),
+      canSpin: eligible && !spunToday && user.availablePoints >= cfg.entryFee,
+      reason: !eligible ? 'ineligible' : spunToday ? 'spun-today' : user.availablePoints < cfg.entryFee ? 'low-balance' : null,
+      segments: cfg.segments.map((s) => ({ label: s.label, points: s.points })), // no weights
       lastResult: spunToday ? (user.lastSpinPoints ?? 0) : null,
       nextResetAt: nextResetAt(),
     });
@@ -32,31 +38,35 @@ export const getSpinStatus = async (req: Request, res: Response) => {
   }
 };
 
-// POST /api/spin — spend the entry fee, pick a prize (server RNG), credit it.
-// The winning slice index is returned so the wheel animates to it.
+// POST /api/spin — spend the entry fee, pick a prize (server RNG), credit it,
+// log the spin. Returns the winning slice index so the wheel animates to it.
 export const doSpin = async (req: Request, res: Response) => {
   try {
-    const user = await User.findById((req.user as { _id: unknown })._id).select('tier availablePoints lastSpinAt');
+    const cfg = await loadConfig();
+    const user = await User.findById((req.user as { _id: unknown })._id).select('tier partyName availablePoints lastSpinAt');
     if (!user) return res.status(404).send({ error: 'User not found' });
-    if (!isSpinEligible(user.tier)) return res.status(403).send({ error: 'Reach Basic tier to unlock the daily spin' });
+    if (!eligibleFor(user.tier, cfg)) return res.status(403).send({ error: 'Reach Basic tier to unlock the daily spin' });
     if (hasSpunToday(user.lastSpinAt)) return res.status(409).send({ error: 'You already spun today — come back tomorrow' });
-    if (user.availablePoints < SPIN.entryFee) return res.status(400).send({ error: `You need ${SPIN.entryFee} points to play` });
+    if (user.availablePoints < cfg.entryFee) return res.status(400).send({ error: `You need ${cfg.entryFee} points to play` });
 
-    const idx = pickSegment(SPIN.segments);
-    const prize = SPIN.segments[idx].points;
-    const net = prize - SPIN.entryFee;
+    const idx = pickSegment(cfg.segments);
+    const prize = cfg.segments[idx].points;
+    const net = prize - cfg.entryFee;
     const dayStart = new Date(istDayStartUtc());
 
-    // Atomic guard: only apply if still enough balance AND not already spun today
-    // (prevents a double-spend from two rapid taps).
+    // Atomic guard: apply only if still enough balance AND not already spun today.
     const updated = await User.findOneAndUpdate(
-      { _id: user._id, availablePoints: { $gte: SPIN.entryFee }, $or: [{ lastSpinAt: null }, { lastSpinAt: { $exists: false } }, { lastSpinAt: { $lt: dayStart } }] },
+      { _id: user._id, availablePoints: { $gte: cfg.entryFee }, $or: [{ lastSpinAt: null }, { lastSpinAt: { $exists: false } }, { lastSpinAt: { $lt: dayStart } }] },
       { $inc: { availablePoints: net }, $set: { lastSpinAt: new Date(), lastSpinPoints: prize } },
       { new: true },
     );
     if (!updated) return res.status(409).send({ error: 'You already spun today — come back tomorrow' });
 
-    res.send({ segmentIndex: idx, prize, entryFee: SPIN.entryFee, newBalance: updated.availablePoints, nextResetAt: nextResetAt() });
+    // Audit trail (non-fatal — never blocks the payout).
+    SpinLog.create({ userId: user._id, partyName: user.partyName, tier: user.tier, entryFee: cfg.entryFee, prize, segmentIndex: idx, balanceAfter: updated.availablePoints })
+      .catch(() => {});
+
+    res.send({ segmentIndex: idx, prize, entryFee: cfg.entryFee, newBalance: updated.availablePoints, nextResetAt: nextResetAt() });
   } catch (error) {
     res.status(500).send({ error: 'Spin failed — no points were deducted' });
   }

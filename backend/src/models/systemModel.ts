@@ -22,6 +22,13 @@ interface System extends Document {
   // so a quarter can only be run once unless explicitly forced.
   lastTierReviewQuarter?: string;
   lastTierReviewAt?: Date;
+  // Daily Spin config (superadmin-editable). Absent = use the code default.
+  spinWheel?: {
+    enabled: boolean;
+    entryFee: number;
+    minTierRank: number;
+    segments: { label: string; points: number; weight: number }[];
+  };
 }
 
 const systemSchema = new Schema<System>({
@@ -44,6 +51,15 @@ const systemSchema = new Schema<System>({
   },
   lastTierReviewQuarter: { type: String, default: '' },
   lastTierReviewAt: { type: Date, default: null },
+  spinWheel: {
+    type: {
+      enabled: Boolean,
+      entryFee: Number,
+      minTierRank: Number,
+      segments: [{ _id: false, label: String, points: Number, weight: Number }],
+    },
+    default: undefined,
+  },
 });
 
 export default model<System>('System', systemSchema);

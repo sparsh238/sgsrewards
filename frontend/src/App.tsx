@@ -27,6 +27,7 @@ import AdminOrders from './screens/admin/Orders';
 import Bills from './screens/admin/Bills';
 import Items from './screens/admin/Items';
 import System from './screens/admin/System';
+import SpinAdmin from './screens/admin/SpinAdmin';
 import TierReview from './screens/admin/TierReview';
 import Calendar from './screens/admin/Calendar';
 import SalesTeam from './screens/admin/SalesTeam';
@@ -142,6 +143,7 @@ export default function App() {
           <Route path="items" element={<Items />} />
           <Route path="calendar" element={<Calendar />} />
           <Route path="tier-review" element={<TierReview />} />
+          <Route path="spin" element={<SpinAdmin />} />
           <Route path="system" element={<System />} />
         </Route>
       </Route>

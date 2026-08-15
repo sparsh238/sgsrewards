@@ -1,12 +1,15 @@
 import { Router } from 'express';
 import authMiddleware from '../middleware/authMiddleware';
-import { addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, updatePointsConversion, refreshUserList, getAllUsers, getPointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, getTierReview, applyTierReview, updateDealer } from '../controllers/superAdminController';
+import { addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, updatePointsConversion, refreshUserList, getAllUsers, getPointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, getTierReview, applyTierReview, updateDealer, getSpinConfig, updateSpinConfig, getSpinLog } from '../controllers/superAdminController';
 
 const router = Router();
 
 router.get('/allusers', authMiddleware('superadmin'), getAllUsers);
 router.post('/sausers', authMiddleware('superadmin'), addUser);
 router.get('/sales-areas', authMiddleware('superadmin'), getSalesAreas);
+router.get('/spin-config', authMiddleware('superadmin'), getSpinConfig);
+router.put('/spin-config', authMiddleware('superadmin'), updateSpinConfig);
+router.get('/spin-log', authMiddleware('superadmin'), getSpinLog);
 router.post('/sales-user', authMiddleware('superadmin'), addSalesUser);
 router.patch('/sales-user/:id', authMiddleware('superadmin'), updateSalesUser);
 router.delete('/users/:id', authMiddleware('superadmin'), deleteUser);

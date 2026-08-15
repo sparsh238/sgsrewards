@@ -38,6 +38,7 @@ export default function AdminShell() {
         {!isSales && link(`${base}/items`, 'Rewards')}
         {link(`${base}/calendar`, 'Calendar')}
         {isSuper && link(`${base}/tier-review`, 'Tier Review')}
+        {isSuper && link(`${base}/spin`, 'Spin')}
         {isSuper && link(`${base}/system`, 'System')}
         <div className="nav-spacer" />
         <button className="nav-link" onClick={logout} style={{ textAlign: 'left' }}>Log out</button>
