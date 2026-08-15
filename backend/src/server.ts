@@ -10,6 +10,7 @@ import adminRoutes from './routes/adminRoutes';
 import superAdminRoutes from './routes/superAdminRoutes';
 import itemRoutes from './routes/itemRoutes'
 import billRoutes from './routes/billRoutes'
+import spinRoutes from './routes/spinRoutes'
 import errorHandler from './utils/errorHandler';
 import path from 'path';
 
@@ -65,6 +66,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/superadmin', superAdminRoutes);
 app.use('/api/item', itemRoutes);
 app.use('/api/bill', billRoutes);
+app.use('/api/spin', spinRoutes);
 
 // Single-origin deploy: serve the built SPA from the same origin as the API so the
 // frontend can use relative /api paths (no CORS). Guarded by SERVE_STATIC so local

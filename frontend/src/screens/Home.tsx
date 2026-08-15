@@ -9,6 +9,7 @@ import {
 } from '../lib/tier';
 import MetalCard from '../components/MetalCard';
 import TierNudge from '../components/TierNudge';
+import SpinHomeCard from '../components/SpinHomeCard';
 import { isAvailable, itemPrice, type Item } from '../lib/types';
 
 interface Profile {
@@ -98,6 +99,9 @@ export default function Home() {
       {profile?.inScheme !== false && (nudge && profile
         ? <TierNudge nudge={nudge} onOpen={() => navigate('/tier')} />
         : <div className="skeleton" style={{ height: 240 }} />)}
+
+      {/* Daily-spin nudge — below the gauge so it never displaces the speedometer. */}
+      <SpinHomeCard />
 
       {/* Billing motivation — this month and this quarter */}
       {profile?.inScheme !== false && month && quarter && (

@@ -22,6 +22,9 @@ interface User extends Document {
   salesAreas?: string[];
   availablePoints: number;
   totalPoints: number;
+  /** Daily Spin: when they last spun, and the points that spin awarded. */
+  lastSpinAt?: Date | null;
+  lastSpinPoints?: number | null;
   savedAddresses: ObjectId[];
   orders: ObjectId[];
   cart: {
@@ -72,6 +75,8 @@ const userSchema = new Schema<User>({
   salesAreas: { type: [String], default: undefined },
   availablePoints: { type: Number, default: 0 },
   totalPoints: { type: Number, default: 0 },
+  lastSpinAt: { type: Date, default: null },
+  lastSpinPoints: { type: Number, default: null },
   savedAddresses: [{ type: Schema.Types.ObjectId, ref: 'Address' }],
   orders: [{ type: Schema.Types.ObjectId, ref: 'Order' }],
   cart: {

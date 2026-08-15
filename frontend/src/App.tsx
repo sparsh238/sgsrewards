@@ -4,6 +4,9 @@ import { DealerTierProvider, useDealerTier } from './lib/tierTheme';
 import { CartProvider } from './lib/cart';
 import { tierStyleVars } from './lib/tier';
 import BottomNav from './components/BottomNav';
+import SpinTeaser from './components/SpinTeaser';
+import { SpinProvider } from './lib/spin';
+import Spin from './screens/Spin';
 import QuarterWelcomeGate from './components/QuarterWelcomeGate';
 import ProfileGate from './components/ProfileGate';
 import AdminShell from './components/AdminShell';
@@ -60,12 +63,15 @@ function DealerShell() {
   return (
     <DealerTierProvider>
       <CartProvider>
-        <ThemedFrame>
-          <Outlet />
-          <BottomNav />
-          <QuarterWelcomeGate />
-          <ProfileGate />
-        </ThemedFrame>
+        <SpinProvider>
+          <ThemedFrame>
+            <Outlet />
+            <BottomNav />
+            <SpinTeaser />
+            <QuarterWelcomeGate />
+            <ProfileGate />
+          </ThemedFrame>
+        </SpinProvider>
       </CartProvider>
     </DealerTierProvider>
   );
@@ -91,6 +97,7 @@ export default function App() {
       <Route element={<RequireRole roles={['customer']} />}>
         <Route element={<DealerShell />}>
           <Route path="/home" element={<Home />} />
+          <Route path="/spin" element={<Spin />} />
           <Route path="/tier" element={<TierPage />} />
           <Route path="/shop" element={<Shop />} />
           <Route path="/product/:id" element={<Product />} />
