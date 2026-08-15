@@ -449,6 +449,22 @@ const updateSalesUser = async (req: Request, res: Response) => {
   }
 };
 
+// Reset a dealer's daily spin so they can play again today (clears lastSpinAt).
+// Does NOT refund/alter points — only re-enables the spin.
+const resetSpin = async (req: Request, res: Response) => {
+  try {
+    const user = await User.findOneAndUpdate(
+      { _id: req.params.id, userType: 'customer' },
+      { $set: { lastSpinAt: null, lastSpinPoints: null } },
+      { new: true },
+    );
+    if (!user) return res.status(404).send({ error: 'Dealer not found' });
+    res.send({ ok: true, partyName: user.partyName });
+  } catch (error) {
+    res.status(400).send({ error: 'Could not reset the spin' });
+  }
+};
+
 // ---- Daily Spin: prize-table config + audit log ----
 // Config includes the weights (odds) — superadmin-only, never sent to dealers.
 const getSpinConfig = async (_req: Request, res: Response) => {
@@ -494,4 +510,4 @@ const getSpinLog = async (req: Request, res: Response) => {
   }
 };
 
-export { getAllUsers, addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer, getSpinConfig, updateSpinConfig, getSpinLog };
+export { getAllUsers, addUser, addSalesUser, updateSalesUser, getSalesAreas, deleteUser, blockUser, resetPassword, getPointsConversion, updatePointsConversion, changeUserTier, getTierBillingRequirements, updateTierBillingRequirements, refreshUserList, getTierReview, applyTierReview, updateDealer, getSpinConfig, updateSpinConfig, getSpinLog, resetSpin };

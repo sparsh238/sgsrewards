@@ -68,6 +68,14 @@ export default function Users() {
     } catch (err) { patchLocal(u._id, { blocked: !next }); toastError((err as Error).message); }
   };
 
+  const resetSpin = async (u: UserRow) => {
+    if (!window.confirm(`Reset today's spin for ${u.partyName}? They'll be able to spin again today.`)) return;
+    try {
+      await apiJson(`/api/superadmin/users/${u._id}/reset-spin`, { method: 'POST' });
+      toast(`${u.partyName} can spin again today`);
+    } catch (err) { toastError((err as Error).message); }
+  };
+
   const changeTier = async (u: UserRow, newTier: Tier) => {
     const prev = u.tier;
     patchLocal(u._id, { tier: newTier });
@@ -276,6 +284,7 @@ export default function Users() {
                     <td className="cell-actions"><div className="t-actions">
                       {u.userType === 'customer' && <button className="mini-btn" onClick={() => setEditFor(u)}>Edit</button>}
                       <button className="mini-btn" onClick={() => setResetFor(u)}>{u.userType === 'customer' ? 'Reset PIN' : 'Reset password'}</button>
+                      {u.userType === 'customer' && <button className="mini-btn" onClick={() => resetSpin(u)}>Reset spin</button>}
                     </div></td>
                   )}
                 </tr>
