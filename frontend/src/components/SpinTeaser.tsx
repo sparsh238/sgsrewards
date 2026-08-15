@@ -10,11 +10,15 @@ export default function SpinTeaser() {
   const { pathname } = useLocation();
   if (!status || !status.enabled || !status.eligible || pathname === '/spin') return null;
   const ready = status.canSpin;
+  // Outer strip is a frame-width, centred fixed band (like the bottom nav) so the
+  // button anchors to the app frame's right edge, not the whole viewport.
   return (
-    <button className={`spin-fab${ready ? '' : ' used'}`} onClick={() => navigate('/spin')}
-      aria-label={ready ? 'Daily spin — ready' : 'Daily spin — come back tomorrow'}>
-      <div className="sf-disc"><span className="sf-badge">{ready ? '1' : '⏱'}</span></div>
-      <div className="sf-lab">{ready ? 'Spin' : 'Tomorrow'}</div>
-    </button>
+    <div className="spin-fab-strip">
+      <button className={`spin-fab${ready ? '' : ' used'}`} onClick={() => navigate('/spin')}
+        aria-label={ready ? 'Daily spin — ready' : 'Daily spin — come back tomorrow'}>
+        <div className="sf-disc"><span className="sf-badge">{ready ? '1' : '⏱'}</span></div>
+        <div className="sf-lab">{ready ? 'Spin' : 'Tomorrow'}</div>
+      </button>
+    </div>
   );
 }

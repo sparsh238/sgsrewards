@@ -2228,7 +2228,8 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 .spin-card .sc-go{ margin-left:auto; flex:0 0 auto; color:var(--on-copper); background:linear-gradient(135deg, color-mix(in srgb,var(--copper-hi) 85%,#fff), var(--copper-hi)); font-weight:800; font-size:12px; padding:9px 15px; border-radius:11px; }
 
 /* Teaser FAB — bottom-right, above the nav; clears the CTA. */
-.spin-fab{ position:fixed; right:16px; bottom:calc(var(--nav-h, 64px) + 18px); width:60px; text-align:center; z-index:44; background:none; border:none; cursor:pointer; }
+.spin-fab-strip{ position:fixed; left:50%; transform:translateX(-50%); bottom:calc(80px + env(safe-area-inset-bottom)); width:100%; max-width:480px; pointer-events:none; z-index:44; }
+.spin-fab{ position:absolute; right:16px; bottom:0; width:60px; text-align:center; background:none; border:none; cursor:pointer; pointer-events:auto; }
 .spin-fab .sf-disc{ width:56px;height:56px;border-radius:50%;margin:0 auto;position:relative; background:conic-gradient(var(--panel-raised) 0 45deg, var(--panel) 45deg 90deg, var(--copper-hi) 90deg 135deg, var(--panel-raised) 135deg 225deg, var(--copper-hi) 225deg 270deg, var(--panel) 270deg 360deg); border:2px solid var(--copper-hi); box-shadow:0 8px 18px -6px #000, 0 0 0 5px color-mix(in srgb,var(--copper-hi) 15%,transparent); animation:sf-pulse 2.4s ease-in-out infinite; }
 .spin-fab .sf-disc::after{ content:"";position:absolute;inset:0;margin:auto;width:16px;height:16px;border-radius:50%;background:var(--ground);border:1.5px solid var(--copper-hi); }
 .spin-fab .sf-badge{ position:absolute;top:-3px;right:-3px;min-width:18px;height:18px;padding:0 4px;border-radius:9px;background:var(--copper-hi);color:var(--on-copper);font-size:10px;font-weight:900;display:grid;place-items:center;border:2px solid var(--ground); }
@@ -2240,7 +2241,9 @@ table.data tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
 @media (prefers-reduced-motion: reduce){ .spin-fab .sf-disc{ animation:none; } }
 
 /* Wheel screen */
-.spin-screen{ display:flex; flex-direction:column; align-items:center; gap:14px; text-align:center; }
+.spin-screen{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; text-align:center; flex:1; position:relative; padding-bottom:90px; }
+.spin-close{ position:absolute; top:4px; right:2px; width:36px; height:36px; border-radius:50%; background:var(--panel); border:1px solid var(--hairline); color:var(--muted); font-size:15px; display:grid; place-items:center; cursor:pointer; z-index:6; }
+.spin-close:hover{ color:var(--ink); }
 .spin-title{ font-size:22px; font-weight:800; letter-spacing:-.01em; }
 .spin-sub{ color:var(--muted); font-size:13px; margin-top:2px; }
 .spin-balchip{ display:inline-flex; align-items:center; gap:6px; font-weight:800; font-size:13px; color:var(--copper-hi); background:color-mix(in srgb,var(--copper-hi) 12%,transparent); border:1px solid color-mix(in srgb,var(--copper-hi) 40%,transparent); padding:5px 12px; border-radius:999px; }

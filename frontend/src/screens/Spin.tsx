@@ -74,6 +74,7 @@ export default function Spin() {
 
   return (
     <div className="page spin-screen">
+      <button className="spin-close" onClick={() => navigate('/home')} aria-label="Close">✕</button>
       <div>
         <h1 className="spin-title">Daily Spin</h1>
         <p className="spin-sub">

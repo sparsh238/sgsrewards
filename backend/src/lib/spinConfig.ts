@@ -1,17 +1,12 @@
 // Daily Spin-the-Wheel config + helpers. Points-only prizes, one spin per
 // calendar day (IST), 10-pt entry, eligible for Basic tier and up (No Tier
-// excluded). The prize weights set the economics — this "Neutral" table pays
-// out ≈ the entry fee on average (near-zero net points liability), with a rare
-// jackpot for the thrill. Dealers never see the weights.
+// excluded). The prize weights set the economics; dealers never see the weights.
 export interface SpinSegment { label: string; points: number; weight: number }
 
 export const SPIN = {
   enabled: true,
   entryFee: 10,
-  // Ladder rank required to play (NoTier = 0). 1 = Basic and up.
-  minTierRank: 1,
-  // 8 slices (rendered as an 8-segment wheel). Order here = clockwise order on
-  // the wheel; two "Better luck" slices so the common outcome isn't one lonely wedge.
+  minTierRank: 1, // Basic and up (NoTier = 0 excluded)
   segments: [
     { label: 'Better luck', points: 0,    weight: 28 },
     { label: '5 points',    points: 5,    weight: 22 },
@@ -35,8 +30,7 @@ export const pickSegment = (segments: SpinSegment[]): number => {
   return segments.length - 1;
 };
 
-// Calendar-day reset in IST: the UTC instant of the most recent IST midnight,
-// and the next one (for the countdown).
+// Calendar-day reset in IST.
 const IST_MS = 5.5 * 3600 * 1000;
 export const istDayStartUtc = (t: number = Date.now()): number => Math.floor((t + IST_MS) / 86400000) * 86400000 - IST_MS;
 export const nextResetAt = (): Date => new Date(istDayStartUtc() + 86400000);
