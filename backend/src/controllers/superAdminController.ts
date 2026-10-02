@@ -275,32 +275,39 @@ const getTierReview = async (req: Request, res: Response) => {
   try {
     const system = await System.findOne();
     const reqs = (system?.tierBillingRequirements ?? {}) as Record<string, number>;
-    const fq = fiscalQuarter(new Date());
+    // Pick the quarter to review: offset 0 = current (in progress), 1 = the quarter
+    // that just ended, etc. Default to the PREVIOUS quarter — tier review is a
+    // quarter-end activity, so the just-closed quarter is the one you act on.
+    const now = new Date();
+    const offset = Math.max(0, Math.min(8, parseInt(String(req.query.offset ?? '1'), 10) || 0));
+    const quarterAt = (o: number) => fiscalQuarter(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3 * o, 15)));
+    const fq = quarterAt(offset);
+    const options = Array.from({ length: 5 }, (_, o) => { const f = quarterAt(o); return { offset: o, key: f.key, label: f.label, inProgress: o === 0 }; });
 
     // Match on the TRUE billing month (period), not the entry date, so back-dated
-    // bills land in the quarter they belong to.
+    // bills land in the quarter they belong to. Excluded bills award no points.
     const agg = await Bill.aggregate([
-      { $match: { period: { $gte: fq.periodFrom, $lt: fq.periodTo } } },
-      { $group: { _id: '$userId', billed: { $sum: '$billAmount' } } },
+      { $match: { period: { $gte: fq.periodFrom, $lt: fq.periodTo }, voided: { $ne: true } } },
+      { $group: { _id: '$userId', billed: { $sum: '$billAmount' }, points: { $sum: '$pointsAwarded' } } },
     ]);
-    const billedByUser = new Map<string, number>(agg.map((a) => [String(a._id), a.billed]));
+    const statByUser = new Map<string, { billed: number; points: number }>(agg.map((a) => [String(a._id), { billed: a.billed ?? 0, points: a.points ?? 0 }]));
 
     // Only in-scheme (real CD) dealers are reviewed; out-of-scheme never earn/change tier.
     const users = await User.find({ userType: 'customer', inScheme: { $ne: false } });
     const rank = (t: string) => TIER_ORDER.indexOf(t);
     const rows = users.map((u) => {
-      const billed = billedByUser.get(String(u._id)) ?? 0;
-      const proposedTier = tierForBilling(billed, reqs);
+      const stat = statByUser.get(String(u._id)) ?? { billed: 0, points: 0 };
+      const proposedTier = tierForBilling(stat.billed, reqs);
       const dir = rank(proposedTier) > rank(u.tier) ? 'up' : rank(proposedTier) < rank(u.tier) ? 'down' : 'hold';
       return {
         userId: u._id, partyName: u.partyName, phoneNumber: u.phoneNumber, gstin: u.gstin,
-        region: u.region, billed, currentTier: u.tier, proposedTier, direction: dir,
+        region: u.region, billed: stat.billed, points: stat.points, currentTier: u.tier, proposedTier, direction: dir,
         isNewEntrant: u.tier === 'NoTier' && proposedTier !== 'NoTier',
       };
     });
     const changes = rows.filter((r) => r.direction !== 'hold');
     res.send({
-      quarter: fq.key, quarterLabel: fq.label, fyLabel: fq.fyLabel, from: fq.from, to: fq.to,
+      quarter: fq.key, quarterLabel: fq.label, fyLabel: fq.fyLabel, from: fq.from, to: fq.to, offset, options,
       alreadyApplied: system?.lastTierReviewQuarter === fq.key,
       appliedAt: system?.lastTierReviewQuarter === fq.key ? system?.lastTierReviewAt : null,
       counts: {
@@ -319,11 +326,16 @@ const getTierReview = async (req: Request, res: Response) => {
 // Apply approved rows. Once per quarter unless `force` is passed. Reuses the
 // change-tier semantics: records previousTier and flags the welcome once.
 const applyTierReview = async (req: Request, res: Response) => {
-  const { changes, force } = req.body as { changes?: Array<{ userId: string; proposedTier: string }>; force?: boolean };
+  const { changes, force, quarter } = req.body as { changes?: Array<{ userId: string; proposedTier: string }>; force?: boolean; quarter?: string };
   if (!Array.isArray(changes)) return res.status(400).send({ error: 'changes[] required' });
   try {
     const system = await System.findOne();
-    const fq = fiscalQuarter(new Date());
+    // Approve for the quarter the review was computed for (validated against the
+    // recent set), not whatever quarter it is right now.
+    const now = new Date();
+    const quarterAt = (o: number) => fiscalQuarter(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 3 * o, 15)));
+    let fq = quarterAt(1);
+    for (let o = 0; o <= 8; o++) { const f = quarterAt(o); if (f.key === quarter) { fq = f; break; } }
     if (system?.lastTierReviewQuarter === fq.key && !force) {
       return res.status(409).send({
         error: 'ALREADY_APPLIED',

@@ -5,20 +5,24 @@ import { TIER_ACCENT, type Tier } from '../../lib/tier';
 import SearchInput from '../../components/SearchInput';
 import DealerCard from './DealerCard';
 import { matchesSearch } from '../../lib/search';
+import { formatNumber } from '../../lib/format';
 
 interface Change {
   userId: string;
   partyName: string;
   region?: string;
   billed: number;
+  points: number;
   currentTier: Tier;
   proposedTier: Tier;
   direction: 'up' | 'down' | 'hold';
   isNewEntrant: boolean;
 }
+interface QuarterOption { offset: number; key: string; label: string; inProgress: boolean }
 interface Review {
   from: string; to: string;
-  quarterLabel: string; fyLabel: string;
+  quarter: string; quarterLabel: string; fyLabel: string;
+  offset: number; options: QuarterOption[];
   alreadyApplied: boolean; appliedAt: string | null;
   counts: { changes: number; up: number; down: number; newEntrants: number };
   changes: Change[];
@@ -46,13 +50,17 @@ export default function TierReview() {
   const [q, setQ] = useState('');
   const [dealerOpen, setDealerOpen] = useState<string | null>(null);
 
-  const load = () => {
-    setReview(null);
-    apiJson<Review>('/api/superadmin/tier-review')
+  // Which quarter to review: 0 = current (in progress), 1 = the quarter that just
+  // ended (default — tier review is a quarter-end activity), 2+ = older.
+  const [offset, setOffset] = useState(1);
+
+  const load = (off: number) => {
+    setReview(null); setError('');
+    apiJson<Review>(`/api/superadmin/tier-review?offset=${off}`)
       .then((r) => { setReview(r); setChecked(Object.fromEntries(r.changes.map((c) => [c.userId, true]))); })
       .catch((e) => setError((e as Error).message));
   };
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+  useEffect(() => { load(offset); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [offset]);
 
   const selectedCount = useMemo(() => Object.values(checked).filter(Boolean).length, [checked]);
 
@@ -82,9 +90,9 @@ export default function TierReview() {
     if (changes.length === 0) { toastError('Select at least one dealer.'); return; }
     setApplying(true);
     try {
-      const res = await apiJson<{ applied: number }>('/api/superadmin/tier-review/apply', { method: 'POST', json: { changes, force } });
-      toast(`${res.applied} tier change${res.applied === 1 ? '' : 's'} applied`);
-      load();
+      const res = await apiJson<{ applied: number }>('/api/superadmin/tier-review/apply', { method: 'POST', json: { changes, force, quarter: review.quarter } });
+      toast(`${res.applied} tier change${res.applied === 1 ? '' : 's'} applied for ${review.quarterLabel}`);
+      load(offset);
     } catch (err) { toastError((err as Error).message); }
     finally { setApplying(false); }
   };
@@ -101,6 +109,16 @@ export default function TierReview() {
             Nothing applies until you approve.
           </p>
         </div>
+        {review && (
+          <div className="admin-toolbar">
+            <label className="hint" style={{ fontWeight: 700 }}>Quarter</label>
+            <select className="input" style={{ width: 'auto' }} value={offset} onChange={(e) => setOffset(Number(e.target.value))}>
+              {review.options.map((o) => (
+                <option key={o.offset} value={o.offset}>{o.label}{o.inProgress ? ' · in progress' : o.offset === 1 ? ' · just ended' : ''}</option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
 
       {error && <div className="error-banner" role="alert">{error}</div>}
@@ -158,13 +176,13 @@ export default function TierReview() {
                         aria-label="Select all shown"
                         onChange={(e) => setChecked((m) => ({ ...m, ...Object.fromEntries(visible.map((c) => [c.userId, e.target.checked])) }))} />
                     </th>
-                    <th>Dealer</th><th>Region</th><th>Billed</th>
+                    <th>Dealer</th><th>Region</th><th>Billed</th><th>Points</th>
                     <th style={{ textAlign: 'right' }}>Current</th><th className="tr-arrow">→</th><th>Proposed</th>
                   </tr>
                 </thead>
                 <tbody>
                   {visible.length === 0 && (
-                    <tr><td colSpan={7} className="hint" style={{ textAlign: 'center', padding: 30 }}>No dealers match these filters.</td></tr>
+                    <tr><td colSpan={8} className="hint" style={{ textAlign: 'center', padding: 30 }}>No dealers match these filters.</td></tr>
                   )}
                   {visible.map((c) => (
                     <Fragment key={c.userId}>
@@ -174,6 +192,7 @@ export default function TierReview() {
                       <td className="t-strong"><button className="linklike" onClick={() => setDealerOpen(dealerOpen === c.userId ? null : c.userId)}>{c.partyName}</button></td>
                       <td className="hint">{c.region || '—'}</td>
                       <td className="t-num">{fmtL(c.billed)}</td>
+                      <td className="t-num">{formatNumber(c.points)}</td>
                       <td style={{ textAlign: 'right' }}><TierChip t={c.currentTier} /></td>
                       <td className="tr-arrow">→</td>
                       <td>
@@ -184,7 +203,7 @@ export default function TierReview() {
                       </td>
                     </tr>
                     {dealerOpen === c.userId && (
-                      <tr className="row-detail"><td colSpan={7}><DealerCard userId={c.userId} /></td></tr>
+                      <tr className="row-detail"><td colSpan={8}><DealerCard userId={c.userId} /></td></tr>
                     )}
                     </Fragment>
                   ))}
